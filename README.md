@@ -110,15 +110,15 @@ cp .env.example .env
 ```
 *(On Windows PowerShell: `Copy-Item .env.example .env`)*
 
-### 6. Run Smoke Tests & Verification
-Run the automated pytest smoke test suite:
+### 6. Run Tests & Feature Engineering Pipeline
+Run the complete automated pytest verification suite (smoke, data pipeline, split isolation, tabular features):
 ```bash
-pytest tests/test_smoke.py -v
+pytest -v
 ```
 
-Verify package imports via Python one-liner:
+Execute the tabular feature engineering pipeline:
 ```bash
-python -c "import lightgbm, torch, shap, sklearn; print('All core libraries imported successfully!')"
+python src/features/tabular.py
 ```
 
 ---

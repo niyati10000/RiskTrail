@@ -28,6 +28,8 @@ Predict which credit card customers will default from their sequence of monthly 
 - PyTorch runtime: Standard CPU/CUDA compatible wheels installed.
 - Feature taxonomy locked: `customer_ID` (id), `S_2` (date), `target` (binary label), 4 categorical features (`D_63`, `D_64`, `B_30`, `B_38`), 22 numeric features.
 - Leakage Prevention: All categorical integer encodings and numeric median imputations are fitted strictly on the TRAIN split customers; unseen/missing categories are mapped to `-1`. Missing indicators (`<col>__missing`) are int8 flags.
+- Tabular feature aggregation: strictly vectorized groupby computations without Python loops over customers. Naming format `{feature}__{agg}`. 9 numeric aggregations (`last`, `first`, `mean`, `std`, `min`, `max`, `delta_last_first`, `slope`, `delta_last_mean`) in `float32`; 4 categorical aggregations (`last`, `first`, `nunique`, `count`) in `int16`. Total tabular dataset has 216 columns (`customer_id`, 214 features, `target`) with 0.83 MB memory footprint for 1,000 customers.
+- Closed-form vectorized slope formulation: $\beta = \frac{\sum x_i y_i - \frac{n(n-1)}{2} \bar{y}}{\frac{n(n^2-1)}{12}}$ evaluated over $x_i = \text{step\_idx} \in [0, n-1]$. Single statement customers ($n \le 1$) and zero-variance series are safely assigned slope $0.0$ and std $0.0$, guaranteeing 0 NaNs and 0 Infs.
 
 ## Team split (two people)
 | Person | Owns |
@@ -47,21 +49,23 @@ Predict which credit card customers will default from their sequence of monthly 
 LightGBM is often on par with sequence models here. If so, REPORT IT, then analyze where sequence models help (e.g., customers with deteriorating behavior over time).
 
 ## Status (update every session)
-- Current phase: **2 — Preprocessing & Feature Engineering (Part 1 COMPLETED)**
+- Current phase: **2 — Preprocessing & Feature Engineering (Part 2 COMPLETED)**
 - Last done:
-  - Implemented `src/data/split.py`: generated customer-stratified splits (70% train / 15% valid / 15% test) saved to `data/processed/splits.parquet` with auxiliary `time_holdout` boolean flag.
-  - Implemented `src/data/clean.py`:
-    - Zero data leakage: fits median imputers and categorical mappings strictly on train split statements.
-    - Encoded categoricals (`D_63`, `D_64`, `B_30`, `B_38`) into integer codes (0..K-1, with -1 for unseen/missing).
-    - Added `<col>__missing` int8 indicators for features with missing values (`D_42`, `D_43`, `P_3`, `S_3`, `S_7`).
-    - Added sequence metadata: `step_idx` (0..12) and `n_statements` (2..13).
-    - Saved `data/interim/statements_clean.parquet` and `data/interim/clean_artifacts.json`.
-  - Implemented unit test suite `tests/test_split.py` proving:
-    - Zero customer overlap across splits (`train ∩ valid = ∅`, `train ∩ test = ∅`, `valid ∩ test = ∅`).
-    - Stratification preserved within ±0.4% across all splits.
-    - Imputer statistics are strictly isolated to train without test leakage.
-  - Full test suite passing (43/43 tests).
-- Next: **Phase 2 (Part 2) — Feature Engineering (`tabular.py` aggregates & `sequence.py` tensors `[N, 13, F]`)**
+  - Implemented `src/features/tabular.py`:
+    - Full vectorized summary aggregations across customer statement sequences with zero Python loops over customers.
+    - Numeric features (22 * 9 = 198 columns): `last`, `first`, `mean`, `std`, `min`, `max`, `delta_last_first`, `slope`, `delta_last_mean` in `float32`.
+    - Categorical features (4 * 4 = 16 columns): `last`, `first`, `nunique`, `count` in `int16`.
+    - Closed-form vectorized linear slope formulation matching `numpy.polyfit`.
+    - Merged `target` and saved to `data/processed/tabular.parquet` with `customer_id` and `target` (216 columns, 0.83 MB memory footprint, 0 NaNs / 0 Infs).
+  - Implemented unit test suite `tests/test_features.py` (7 tests):
+    - Parquet schema and shape verification (1,000 customers, 216 columns).
+    - Strict adherence to `{feature}__{agg}` naming convention.
+    - Zero NaNs, nulls, or Infs across all columns.
+    - Mathematical exactness verified on controlled synthetic customers.
+    - Edge cases verified: single-statement customers ($n=1$) and zero variance.
+    - Vectorized slopes proven to match `numpy.polyfit` reference across varying sequence lengths (2..13).
+  - Full test suite passing (50/50 tests).
+- Next: **Phase 2 (Part 3) — Sequence Tensors (`src/features/sequence.py` building `X_seq.npy`, `cat_seq.npy`, `mask.npy`, `y.npy`, `ids.npy`)**
 - Blockers: _none_
 
 ## File map

@@ -40,7 +40,12 @@ There is deliberately **no server database**. Data lives in parquet/npy files; e
 **Invariant:** every array above has the same row order, defined by `ids.npy`.
 
 ### Aggregate feature naming (tabular)
-`{feature}__{agg}` where `agg` in `last, first, mean, std, min, max, delta_last_first, slope, delta_last_mean`.
+- Column format: `{feature}__{agg}`
+- Numeric aggregates (9 per feature): `last`, `first`, `mean`, `std`, `min`, `max`, `delta_last_first`, `slope`, `delta_last_mean` (all stored as `float32`).
+- Categorical aggregates (4 per feature): `last`, `first`, `nunique`, `count` (stored as `int16`).
+- Total columns: 216 (`customer_id` + 198 numeric aggs + 16 categorical aggs + `target`).
+- Single-statement edge cases: `std` and `slope` are filled with `0.0` (zero NaNs or Infs).
+- Memory footprint: ~0.83 MB for 1,000 customers.
 
 ## 4. Results (`results/<model>/`)
 | File | Content |
