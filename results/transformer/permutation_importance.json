@@ -1,0 +1,25 @@
+{
+  "base_competition_metric": 0.58333,
+  "feature_group_importance": {
+    "D (Delinquency)": 0.0,
+    "B (Balance)": 0.05882,
+    "P (Payment)": 0.0,
+    "S (Spend)": 0.0,
+    "R (Risk)": 0.0
+  },
+  "temporal_step_importance": {
+    "T-12": 0.0,
+    "T-11": 0.0,
+    "T-10": 0.0,
+    "T-9": 0.0,
+    "T-8": 0.0,
+    "T-7": 0.0,
+    "T-6": 0.0,
+    "T-5": 0.0,
+    "T-4": 0.0,
+    "T-3": 0.0,
+    "T-2": 0.0,
+    "T-1": 0.0,
+    "T (Latest)": 0.00039
+  }
+}
