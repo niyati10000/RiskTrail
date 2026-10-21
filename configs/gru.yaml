@@ -1,16 +1,19 @@
 # GRU Sequence Model Configuration
 model_name: "gru"
+rnn_type: "gru"
+bidirectional: false
 hidden_dim: 64
 num_layers: 2
-bidirectional: false
 dropout: 0.2
-pooling: "masked_last"  # or masked_mean, masked_max
+pooling: "all"  # "all" (last + mean + max), or "masked_last", "masked_mean", "masked_max"
 mlp_dims: [64, 32]
 
 training:
-  batch_size: 256
+  batch_size: 64
   learning_rate: 0.001
   weight_decay: 0.01
-  max_epochs: 30
-  early_stopping_patience: 5
+  max_epochs: 35
+  early_stopping_patience: 7
+  gradient_clip: 1.0
+  lr_scheduler: "cosine"  # "cosine" or "onecycle"
   seed: 42

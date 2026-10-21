@@ -1,0 +1,25 @@
+{
+  "model_name": "gru",
+  "rnn_type": "gru",
+  "num_features": 22,
+  "cat_cardinalities": [
+    5,
+    4,
+    3,
+    7
+  ],
+  "hidden_dim": 64,
+  "num_layers": 2,
+  "bidirectional": false,
+  "pooling": "all",
+  "mlp_dims": [
+    64,
+    32
+  ],
+  "best_epoch": 1,
+  "total_epochs": 8,
+  "pos_weight": 3.0936,
+  "learning_rate": 0.001,
+  "seed": 42,
+  "training_time_seconds": 5.98
+}

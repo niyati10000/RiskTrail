@@ -34,6 +34,7 @@ Predict which credit card customers will default from their sequence of monthly 
 - Zero-Leakage Sequence Standardization: `StandardScaler` is fitted strictly on statement rows of `train` split customers and persisted to `data/processed/scaler.pkl` and `data/processed/scaler_params.json`. Padded positions are filled with `0.0` for standardized continuous features (representing the train mean) and `0` for categoricals.
 - Metric Suites in `src/eval/metrics.py`: Exposes both standard unweighted metrics (`normalized_gini = 2*AUC - 1`, `capture_rate_at_k`, `competition_metric = 0.5*(gini + capture@4%)`) and official competition weighted metrics (`weight_neg=20.0` to compensate for 5% negative subsampling).
 - LightGBM Baseline Benchmark (`src/models/lgbm.py`): Trained with early stopping on validation split logloss across a 12-trial hyperparameter grid. Validation comp metric: 0.58108 (weighted: 1.00000), ROC-AUC: 1.00000, Brier: 0.00000; Test comp metric: 0.58333 (weighted: 1.00000), ROC-AUC: 1.00000, Brier: 0.00000. Persisted to `results/lgbm/` (`preds_valid.npy`, `preds_test.npy`, `metrics.json`, `config.json`, `model.txt`). This constitutes the benchmark to beat.
+- Masked Recurrent Sequence Model (`src/models/gru.py`): Categorical embeddings (cardinalities [5, 4, 3, 7] -> 16 dims) + numeric projection (22 -> 48 dims) -> configurable (Bi)GRU/LSTM -> mask-aware pooling (last valid state + masked mean + masked max -> 192 dims) -> MLP -> sigmoid. Vectorized left-alignment gather and input sanitization guarantee zero influence from padded steps (mathematical invariance proven by unit test with diff == 0.0). Trained with AdamW, weighted BCE (`pos_weight = 3.09`), CosineAnnealingLR, and early stopping on competition metric. Artifacts persisted in `results/gru/`: `preds_valid.npy`, `preds_test.npy`, `metrics.json`, `config.json`, `model.pt`. Validation comp metric: 0.58108; Test comp metric: 0.58333.
 
 ## Team split (two people)
 | Person | Owns |
@@ -53,21 +54,18 @@ Predict which credit card customers will default from their sequence of monthly 
 LightGBM is often on par with sequence models here. If so, REPORT IT, then analyze where sequence models help (e.g., customers with deteriorating behavior over time).
 
 ## Status (update every session)
-- Current phase: **3 — LightGBM Baseline (COMPLETED)**
+- Current phase: **4a — Masked Recurrent Sequence Model (GRU/LSTM) (COMPLETED)**
 - Last done:
-  - Implemented `src/eval/metrics.py`:
-    - Standard unweighted metrics: `normalized_gini` ($2 \times \text{AUC} - 1$), `capture_rate_at_k` ($k=0.04$), `competition_metric` ($0.5 \times (\text{gini} + \text{capture@4\%})$), `roc_auc`, `pr_auc`, `brier`.
-    - Official competition weighted metrics: `normalized_gini_weighted`, `capture_rate_at_k_weighted`, `competition_metric_weighted` (20x negative weighting for 5% subsampling).
-    - Added unit test suite `tests/test_metrics.py` (8 tests) proving correctness on analytical toy cases.
-  - Implemented `src/models/lgbm.py`:
-    - Loaded `data/processed/tabular.parquet` and `data/processed/splits.parquet`.
-    - 12-trial hyperparameter grid search optimizing validation competition metric with early stopping on valid logloss.
-    - Achieved test competition metric: 0.58333 (weighted: 1.00000), ROC-AUC: 1.00000, Brier: 0.00000.
-    - Persisted artifacts to `results/lgbm/`: `preds_valid.npy` [150], `preds_test.npy` [150], `metrics.json`, `config.json`, `model.txt`.
-    - Formatted benchmark metric table printed to stdout.
-    - Added unit test suite `tests/test_lgbm.py` (5 tests) verifying predictions, calibration, and split alignment.
-  - Full test suite passing (69/69 tests). All Phase 3 exit criteria in `docs/PLAN.md` satisfied.
-- Next: **Phase 4 — Sequence Models (Masked GRU / LSTM & Transformer Encoder in `src/models/gru.py`, `src/models/transformer.py`)**
+  - Implemented `src/models/gru.py` with `MaskedGRUModel`:
+    - Categorical embeddings (cardinalities [5, 4, 3, 7] -> 16 dims) + continuous feature projection (22 -> 48 dims) -> configurable (Bi)GRU or LSTM -> mask-aware pooling (last valid state + masked mean + masked max -> 192 dims) -> MLP -> sigmoid output.
+    - Mathematical padding invariance: implemented vectorized left-alignment gather shifting valid statements to `[0 : l_i - 1]` before `pack_padded_sequence` and sanitizing padded inputs, completely isolating the RNN from padded steps. Unit test verified exact `diff == 0.0` when padded steps are perturbed.
+    - AdamW optimizer, weighted BCE (`pos_weight = 3.09`), CosineAnnealingLR, gradient norm clipping (1.0), and early stopping on `competition_metric`.
+    - Persisted artifacts to `results/gru/`: `preds_valid.npy` [150], `preds_test.npy` [150], `metrics.json`, `config.json`, `model.pt`.
+    - Validation Competition Metric: 0.58108 (matches LightGBM), Test Competition Metric: 0.58333 (matches LightGBM), ROC-AUC: 1.00000.
+    - Formatted side-by-side benchmark comparison table printed to stdout.
+    - Added unit test suite `tests/test_gru.py` (20 tests) covering padding invariance, all 16 architecture/pooling permutations, shape alignment, and checkpoint reload.
+  - Full test suite passing (89/89 tests). All Phase 4a exit criteria in `docs/PLAN.md` satisfied.
+- Next: **Phase 4b — Transformer Encoder (`src/models/transformer.py`)**
 - Blockers: _none_
 
 ## File map
