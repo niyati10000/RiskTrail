@@ -1,5 +1,5 @@
 # Data directories and files (never commit raw/processed data)
-data/
+/data/
 *.parquet
 *.feather
 
