@@ -39,6 +39,7 @@ Predict which credit card customers will default from their sequence of monthly 
 - Cross-Model Evaluation, Calibration & Trend Segmentation (`src/eval/compare.py`, `src/eval/calibration.py`): LightGBM matches sequence models (Masked GRU, StatementTransformer) on overall ranking discrimination (Test Comp Metric = 0.5833, ROC-AUC = 1.0000, PR-AUC = 1.0000). Class-weighted sequence models exhibit positive prior probability shift, which is corrected via post-hoc Platt scaling and Isotonic regression fitted strictly on the validation split (reducing GRU Brier score from 0.0310 to 0.0000, and Transformer Brier from 0.0364 to 0.0001). Customer trajectory segmentation by delinquency slope (`D_39__slope > 0`) concentrates 100% of test defaulters into the deteriorating cohort ($N=67$, 36 defaults), while calibrated models assign 0.00% predicted risk to the stable non-default cohort ($N=83$). Artifacts and figures persisted to `reports/figures/` (`fig_model_comparison.png`, `fig_calibration.png`, `fig_trend_segment.png`) and report written to `reports/05_evaluation.md`.
 - Business Profit Simulation & Cutoff Policy Optimization (`src/business/profit.py`, `configs/business.yaml`): Evaluates economic credit policies under $V_{\text{good}} = \$100$ net margin and $L_{\text{default}} = \$500$ charge-off loss across approval cutoffs $c \in [0, 1]$. While naive "Approve Everyone" yields a $-\$6,600$ loss on the test cohort ($N=150$, 114 good, 36 defaults), deploying LightGBM, Calibrated GRU, or Calibrated Transformer achieves the theoretical Oracle ceiling of $+\$11,400$ ($+\$18,000$ value-add) by cleanly approving all 114 good accounts (76.0% approval rate) with zero defaults. Uncalibrated neural sequence models require higher cutoffs ($c^* \approx 0.195 - 0.265$) due to class-weighting logit shift, whereas Isotonic Calibration restores optimal operational cutoffs to $c^* \le 0.05$. Loss/profit sensitivity analysis across 2x to 20x ratios proves consistent cutoff stability and model parity. Artifacts persisted to `reports/figures/fig_profit_by_cutoff.png` and `reports/06_business.md`.
 - Model Explainability & Compliance Reason Codes (`src/explain/shap_lgbm.py`, `src/explain/seq_importance.py`): LightGBM feature attribution via TreeExplainer identifies delinquency features (`D_39__last`, `D_39__mean`, `D_39__max`, `D_39__slope`) as primary risk drivers (>75% importance), generating regulatory top-5 adverse-action reason codes for declined applicants. StatementTransformer attention pooling exposes temporal attention across statement history, demonstrating strong recency weighting peaking at statement $T$ (17.7%) and $T-2$ (10.2%). Permutation importance on the sequence model confirms that destroying the Balance group ($B$) and the latest statement ($T$) causes the largest direct competition metric drops. Critical methodological caveat documented: attention weights represent internal information pooling, not counterfactual or causal attribution. Artifacts persisted to `reports/figures/` (`fig_shap_summary.png`, `fig_attention_by_month.png`) and report written to `reports/07_explainability.md`.
+- Final Report Synthesis & Ownership Protocol (`reports/FINAL_REPORT.md`): Consolidates the complete project lifecycle into an 8-section institutional research document adhering to `docs/DESIGN_SYSTEM.md`. Preserves explicit ownership placeholders `[A writes]` (data preprocessing, tabular aggregates, LightGBM) and `[B writes]` (sequence tensors, Masked GRU, StatementTransformer, padding invariance proofs). Shared sections embed all 10 standard publication figures, performance benchmarks, calibration diagnostics, business profit cutoff optimization ($V_{\text{good}}=\$100, L_{\text{default}}=\$500$), loss/profit sensitivity grids (2x to 20x), TreeExplainer SHAP attribution, temporal attention profiles, and worked adverse action case studies. Explicitly details project limitations (synthetic benchmark licensing, assumed static margins, absence of ECOA demographic fairness audits, 13-statement horizon) and future research horizons (risk-based APR pricing, counterfactual recourse, pre-trained foundation models).
 
 ## Team split (two people)
 | Person | Owns |
@@ -58,20 +59,16 @@ Predict which credit card customers will default from their sequence of monthly 
 LightGBM is often on par with sequence models here. If so, REPORT IT, then analyze where sequence models help (e.g., customers with deteriorating behavior over time).
 
 ## Status (update every session)
-- Current phase: **7 — Explainability & Adverse Action (COMPLETED)**
+- Current phase: **8a — Final Report Skeleton & Synthesis (COMPLETED)**
 - Last done:
-  - Implemented `src/explain/shap_lgbm.py`:
-    - TreeExplainer SHAP calculations for LightGBM, generating `reports/figures/fig_shap_summary.png` (top 20 features).
-    - `get_customer_reason_codes` and `format_adverse_action_notice` extracting regulatory top-5 positive risk drivers with human-readable descriptions.
-  - Implemented `src/explain/seq_importance.py`:
-    - Temporal attention extraction from `StatementTransformer` comparing defaulters vs non-defaulters (`reports/figures/fig_attention_by_month.png`), proving sharp recency concentration at statement $T$ (17.7%).
-    - Permutation feature importance by functional feature group (D, B, P, S, R) and by statement time step.
-    - End-to-end worked case study for declined applicant `e4627d06d97d302f742070f63d17b414` aligning SHAP reasons with temporal attention weights.
-    - Formulated critical scientific warning: attention weights reflect internal pooling routing, not counterfactual or causal attribution.
-    - Authored comprehensive report in `reports/07_explainability.md`.
-    - Added unit test suite `tests/test_explain.py` (7 tests).
-  - Full test suite passing (123/123 tests). All Phase 7 exit criteria in `docs/PLAN.md` satisfied.
-- Next: **Phase 8 — Final Report, Demo & Deployment (`README.md`, Streamlit demo `app.py`, final packaging)**
+  - Assembled `reports/FINAL_REPORT.md` with all 8 core sections following `docs/DESIGN_SYSTEM.md`.
+  - Embedded all 10 standard figures from `reports/figures/`.
+  - Embedded standardized comparison tables, calibration diagnostics, optimal profit cutoffs, and 2x to 20x loss-to-profit sensitivity grids.
+  - Preserved clear ownership placeholders `[A writes]` and `[B writes]` for modular co-authoring.
+  - Documented real-world limitations (synthetic benchmark data, assumed static coefficients, absence of ECOA fairness audits, 13-statement horizon) and future work roadmap.
+  - Added unit test suite `tests/test_report.py` (4 tests).
+  - Full test suite passing (127/127 tests). All Phase 8a exit criteria satisfied.
+- Next: **Phase 8b — Interactive Streamlit Demo App (`app.py`) & Final Packaging**
 - Blockers: _none_
 
 ## File map
