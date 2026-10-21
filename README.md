@@ -1,6 +1,6 @@
 # RiskTrail — Credit Risk Sequence Modeling & Profit Optimization
 
-> **Credit Default Risk Prediction from Monthly Statement Sequences, Tabular vs Sequence Architecture Benchmarking, and Profit-Maximizing Approval Policies.**
+> **Credit Default Risk Prediction from Monthly Statement Sequences, Tabular vs Sequence Architecture Benchmarking, Profit-Maximizing Approval Policies, and Lender-Grade Explainability.**
 
 ---
 
@@ -13,10 +13,12 @@
 
 RiskTrail benchmarks credit risk prediction on customer-level statement histories (up to 13 consecutive monthly statements per customer):
 1. **Tabular Benchmark (LightGBM)**: Statistical aggregations across statement history (`last`, `first`, `mean`, `std`, `min`, `max`, `trend/slope`, `delta`).
-2. **Deep Sequence Models (PyTorch)**: Recurrent (`MaskedGRUModel`) and Attention-based (`StatementTransformer`) architectures capturing temporal deterioration patterns.
-3. **Lender Economics & Calibration**: Evaluates probability calibration and translates risk probabilities into optimal lending cutoff curves that maximize net portfolio profit:
-   $$\text{Profit}(t) = \text{profit\_per\_good} \times N_{\text{approved, good}} - \text{loss\_per\_default} \times N_{\text{approved, default}}$$
-4. **Lender-Grade Explainability**: SHAP adverse-action reason codes for rejected applicants and temporal attention importance.
+2. **Deep Sequence Models (PyTorch)**: Recurrent (`MaskedGRUModel`) and Attention-based (`StatementTransformer`) architectures capturing temporal deterioration patterns with strict zero-leakage front-padding.
+3. **Probability Calibration**: Evaluates probability calibration (Platt scaling & Isotonic regression) to correct neural prior shift caused by class weighting (`pos_weight = 3.09`).
+4. **Lender Economics & Business Optimization**: Translates predicted default probabilities into profit-maximizing lending cutoffs under bank revenue assumptions:
+   $$\text{Profit}(c) = V_{\text{good}} \cdot N_{\text{good, app}}(c) - L_{\text{default}} \cdot N_{\text{def, app}}(c)$$
+5. **Lender-Grade Explainability**: TreeExplainer SHAP top-5 adverse-action reason codes for rejected applicants and temporal statement attention allocation from `StatementTransformer`.
+6. **Executive Report & Interactive Demo**: Institutional 8-section synthesis (`reports/FINAL_REPORT.md`) and interactive Streamlit web dashboard (`app/app.py`).
 
 ---
 
@@ -53,10 +55,18 @@ RiskTrail/
 │   └── utils/             # seed.py, logging.py, io.py
 ├── notebooks/             # Exploratory analysis only (no core pipeline logic)
 ├── results/               # Standardized experiment runs (<model>/preds, metrics.json)
+│   ├── lgbm/              # Baseline tree model, preds, SHAP arrays
+│   ├── gru/               # Masked GRU weights, calibrated & uncalibrated preds
+│   └── transformer/       # StatementTransformer weights, attention, permutation importance
 ├── reports/               # Markdown reports per phase + figures/
-├── tests/                 # Unit, smoke, and split leakage verification tests
-│   └── test_smoke.py      # Dependency import & utility smoke test
-├── app/                   # Streamlit interactive decision demo
+│   ├── figures/           # 10 publication-standard figures
+│   ├── 01_eda.md          # Exploratory data audit
+│   ├── 05_evaluation.md   # Cross-model evaluation & calibration report
+│   ├── 06_business.md     # Business profit optimization report
+│   ├── 07_explainability.md # Adverse-action SHAP & attention report
+│   └── FINAL_REPORT.md    # Consolidated 8-section institutional research document
+├── tests/                 # Unit, smoke, and integration test suite (134 tests)
+├── app/                   # Streamlit interactive decision demo (app/app.py)
 ├── requirements.txt       # Pinned production & research dependencies
 ├── .env.example           # Environment variables template
 ├── .gitignore             # Secrets, data, cache, and prediction ignores
@@ -65,7 +75,7 @@ RiskTrail/
 
 ---
 
-## Clean Setup Instructions
+## Clean Setup & Reproduction Instructions
 
 ### 1. Prerequisites
 - **Python**: 3.10+ (tested on Python 3.11.9)
@@ -84,12 +94,6 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-On Windows (CMD):
-```cmd
-python -m venv .venv
-.\.venv\Scripts\activate.bat
-```
-
 On Linux / macOS:
 ```bash
 python3 -m venv .venv
@@ -97,7 +101,6 @@ source .venv/bin/activate
 ```
 
 ### 4. Install Dependencies
-Install all pinned dependencies:
 ```bash
 pip install -r requirements.txt
 ```
@@ -110,34 +113,84 @@ cp .env.example .env
 ```
 *(On Windows PowerShell: `Copy-Item .env.example .env`)*
 
-### 6. Run Tests & Model Pipelines
-Run the complete automated pytest verification suite (smoke, data pipeline, split isolation, tabular features, sequence tensors, metrics, LightGBM):
+### 6. Run Full Verification Test Suite
+Execute the complete automated test suite (134 tests covering data integrity, split isolation, padding invariance, metrics, models, business simulation, explainability, report structure, and demo app):
 ```bash
 pytest -v
 ```
 
-Execute the tabular, sequence, and LightGBM baseline pipelines:
+---
+
+## End-to-End Execution Pipeline
+
+To run or reproduce all phases from scratch:
+
 ```bash
+# 1. Feature Engineering (Tabular aggregations and Front-Padded Sequence Tensors)
 python src/features/tabular.py
 python src/features/sequence.py
+
+# 2. Model Training & Validation
 python src/models/lgbm.py
+python src/models/gru.py
+python src/models/transformer.py
+
+# 3. Model Evaluation, Probability Calibration & Trend Segmentation
+python src/eval/compare.py
+
+# 4. Business Profit Cutoff Optimization & Sensitivity Sweeps
+python src/business/profit.py
+
+# 5. Explainability (SHAP TreeExplainer, Reason Codes & Statement Attention)
+python src/explain/shap_lgbm.py
+python src/explain/seq_importance.py
 ```
 
 ---
 
-## Development Workflow & Roadmap
+## Interactive Streamlit Demo Application
 
-The project executes strictly in sequential phases according to `docs/PLAN.md`. Each phase must pass its explicit exit criteria before proceeding:
-- **Phase 0 (Completed)**: Setup, repo architecture, pinned dependencies, seed and I/O utilities, smoke tests, brain documentation.
-- **Phase 1 (Completed)**: Data Audit & EDA (`reports/01_eda.md`, `configs/columns.yaml`).
-- **Phase 2 (Completed)**: Preprocessing, Missing Indicators, Customer-Stratified Splits (`splits.parquet`), Tabular Aggregates (`tabular.parquet`), and Front-Padded Sequence Tensors (`X_seq.npy`, `cat_seq.npy`, `mask.npy`, `y.npy`, `ids.npy`, `scaler.pkl`).
-- **Phase 3 (Completed)**: LightGBM Tabular Baseline (`results/lgbm/`: `preds_valid.npy`, `preds_test.npy`, `metrics.json`, `config.json`, `model.txt`).
-- **Phase 4**: Sequence Models (Masked GRU & Transformer) (`results/gru/`, `results/transformer/`).
-- **Phase 4**: Sequence Models (Masked GRU & Transformer) (`results/gru/`, `results/transformer/`).
-- **Phase 5**: Cross-Model Evaluation, Normalized Gini, Capture Rate @ 4%, Calibration Curves.
-- **Phase 6**: Business Profit Optimization & Approval Cutoff Sweeps.
-- **Phase 7**: Explainability, Adverse Action Reason Codes & Temporal Attention Analysis.
-- **Phase 8**: Executive Report & Interactive Streamlit Demo.
+Launch the interactive underwriting decision dashboard:
+
+```bash
+streamlit run app/app.py
+```
+
+### Key Capabilities of the Demo
+1. **Score & Underwriting Tab**:
+   - Select any test applicant or load the worked case study borrower (`e4627d06d97d...`).
+   - Dynamic **Underwriting Risk Gauge** indicating customer score vs approval threshold.
+   - Real-time **APPROVED** or **DECLINED** policy decision banner at chosen cutoff.
+   - Financial trajectory metrics (delinquency slope $\beta$, revolving balance $B\_1$, payment ratio $P\_2$).
+2. **Profit Curve Tab**:
+   - Interactive portfolio profit simulation curve across cutoffs $c \in [0, 1]$.
+   - Visual comparison against the "Approve Everyone" baseline ($-\$6,600$) and peak profit ($+\$11,400$).
+   - Policy KPI benchmarking table (Current vs Optimal vs Approve-All vs Decline-All).
+3. **Why This Decision (Explainability) Tab**:
+   - Top-5 risk drivers horizontal bar chart (red = raises risk, blue = lowers risk) using TreeExplainer SHAP.
+   - Structured adverse-action reason codes with lender-grade descriptions.
+   - 13-statement temporal attention timeline from `StatementTransformer` showing where the model placed attention across statement history.
+   - Formal adverse-action notice formatted for FCRA / ECOA regulatory audits.
+
+---
+
+## Roadmap & Completion Status
+
+All project phases have been completed and verified against the criteria in `docs/PLAN.md`:
+
+| Phase | Description | Deliverables | Status |
+|---|---|---|:---:|
+| **0** | Setup & Brain | Folder structure, config files, seeds, smoke tests | **DONE** |
+| **1** | Data Audit & EDA | `reports/01_eda.md`, `configs/columns.yaml`, missingness heatmaps | **DONE** |
+| **2** | Preprocessing & Features | `splits.parquet`, `tabular.parquet`, `X_seq.npy`, `mask.npy`, `y.npy` | **DONE** |
+| **3** | LightGBM Baseline | `results/lgbm/` (model, preds, metrics.json) | **DONE** |
+| **4a** | Masked GRU Model | `results/gru/` (padding invariance proven, metrics.json) | **DONE** |
+| **4b** | StatementTransformer | `results/transformer/` (learned positional encodings, attention pooling) | **DONE** |
+| **5** | Evaluation & Calibration | `src/eval/compare.py`, Platt & Isotonic calibration, `reports/05_evaluation.md` | **DONE** |
+| **6** | Business Profit Simulation | `src/business/profit.py`, cutoff sweeps, sensitivity grid, `reports/06_business.md` | **DONE** |
+| **7** | Explainability Hub | SHAP TreeExplainer, adverse action reasons, attention timeline, `reports/07_explainability.md` | **DONE** |
+| **8a** | Institutional Research Report | `reports/FINAL_REPORT.md` (8 sections, embedded figures & tables) | **DONE** |
+| **8b** | Interactive Streamlit Demo | `app/app.py` (3 tabs, gauge, profit curve, SHAP & attention), `tests/test_app.py` | **DONE** |
 
 ---
 

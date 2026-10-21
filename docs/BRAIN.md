@@ -59,16 +59,17 @@ Predict which credit card customers will default from their sequence of monthly 
 LightGBM is often on par with sequence models here. If so, REPORT IT, then analyze where sequence models help (e.g., customers with deteriorating behavior over time).
 
 ## Status (update every session)
-- Current phase: **8a — Final Report Skeleton & Synthesis (COMPLETED)**
+- Current phase: **8b — Interactive Streamlit Demo App & Final Packaging (COMPLETED)**
 - Last done:
-  - Assembled `reports/FINAL_REPORT.md` with all 8 core sections following `docs/DESIGN_SYSTEM.md`.
-  - Embedded all 10 standard figures from `reports/figures/`.
-  - Embedded standardized comparison tables, calibration diagnostics, optimal profit cutoffs, and 2x to 20x loss-to-profit sensitivity grids.
-  - Preserved clear ownership placeholders `[A writes]` and `[B writes]` for modular co-authoring.
-  - Documented real-world limitations (synthetic benchmark data, assumed static coefficients, absence of ECOA fairness audits, 13-statement horizon) and future work roadmap.
-  - Added unit test suite `tests/test_report.py` (4 tests).
-  - Full test suite passing (127/127 tests). All Phase 8a exit criteria satisfied.
-- Next: **Phase 8b — Interactive Streamlit Demo App (`app.py`) & Final Packaging**
+  - Implemented `app/app.py` adhering to `docs/DESIGN_SYSTEM.md`:
+    - Sidebar with model selection (LightGBM, Calibrated Transformer, Calibrated GRU, Uncalibrated variants), business assumptions ($V_{\text{good}}=\$100, L_{\text{default}}=\$500$), approval cutoff slider ($0..1$), applicant cohort filters, and quick-load for worked case study borrower.
+    - Tab 1 (**Score & Underwriting**): Visual risk gauge meter, real-time APPROVED / DECLINED status banner, credit trajectory summary metrics, and evaluation ground truth.
+    - Tab 2 (**Portfolio Profit Curve**): Interactive portfolio profit simulation curve across cutoffs, peak profit ($+\$11,400$) at optimal cutoff, comparison against "Approve Everyone" baseline ($-\$6,600$), and policy benchmarking table.
+    - Tab 3 (**Why This Decision**): Top-5 SHAP adverse-action risk drivers (horizontal bar chart in red/blue), structured reason code breakdown, 13-statement temporal attention timeline from StatementTransformer, formal ECOA/FCRA adverse-action statement generator, and scientific interpretability disclosure (*Jain & Wallace, 2019*).
+  - Created test suite `tests/test_app.py` (7 tests verifying data loader contracts, plot generation, and decision logic).
+  - Updated `README.md` with complete clean-checkout reproduction steps, architecture overview, and Streamlit launch commands.
+  - Full test suite passing: **134 / 134 tests cleanly pass**. All Phase 8b exit criteria satisfied.
+- Next: Project successfully completed across all Phases 0 to 8b. Ready for production deployment and executive demonstration.
 - Blockers: _none_
 
 ## File map
