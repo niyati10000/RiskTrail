@@ -1,9 +1,39 @@
-# Column type classifications for RiskTrail
-# Concrete column mappings will be populated during Phase 1 (Data Audit & EDA)
-
-id_column: "customer_id"
-date_column: "statement_date"
-target_column: "target"
-
-categorical_features: []
-numeric_features: []
+id_column: customer_ID
+date_column: S_2
+target_column: target
+categorical_features:
+- D_63
+- D_64
+- B_30
+- B_38
+numeric_features:
+- D_39
+- D_41
+- D_42
+- D_43
+- D_44
+- P_2
+- P_3
+- P_4
+- B_1
+- B_2
+- B_3
+- B_4
+- B_5
+- B_9
+- S_3
+- S_5
+- S_6
+- S_7
+- S_8
+- R_1
+- R_2
+- R_3
+metadata:
+  n_total_features: 26
+  n_categoricals: 4
+  n_numerics: 22
+  max_sequence_length: 13
+  date_range:
+  - '2017-03-12'
+  - '2018-03-13'
