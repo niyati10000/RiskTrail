@@ -27,6 +27,7 @@ Predict which credit card customers will default from their sequence of monthly 
 - Environment & Storage: Local virtual environment (`.venv`) and pip build caching isolated on `D:\` drive to preserve system disk space.
 - PyTorch runtime: Standard CPU/CUDA compatible wheels installed.
 - Feature taxonomy locked: `customer_ID` (id), `S_2` (date), `target` (binary label), 4 categorical features (`D_63`, `D_64`, `B_30`, `B_38`), 22 numeric features.
+- Leakage Prevention: All categorical integer encodings and numeric median imputations are fitted strictly on the TRAIN split customers; unseen/missing categories are mapped to `-1`. Missing indicators (`<col>__missing`) are int8 flags.
 
 ## Team split (two people)
 | Person | Owns |
@@ -46,26 +47,21 @@ Predict which credit card customers will default from their sequence of monthly 
 LightGBM is often on par with sequence models here. If so, REPORT IT, then analyze where sequence models help (e.g., customers with deteriorating behavior over time).
 
 ## Status (update every session)
-- Current phase: **1 — Data Audit & EDA (COMPLETED)**
+- Current phase: **2 — Preprocessing & Feature Engineering (Part 1 COMPLETED)**
 - Last done:
-  - Audited raw statement-level data (`train_data.csv`, `train_labels.csv`) with 11,877 statements across 1,000 customers.
-  - Built `src/data/load.py`: converts raw CSVs to Parquet (`data/interim/statements.parquet`, `data/interim/labels.parquet`) using `float32` and `category` dtypes (48% memory reduction).
-  - Built `src/data/eda.py` and `notebooks/01_eda.ipynb` reporting:
-    - 1,000 unique customers, min=2, median=13.0, max=13 statements (80.8% with full 13 statements).
-    - Class balance: 24.4% default (244) vs 75.6% non-default (756).
-    - Missingness profile across features and across statement positions (0..12).
-    - Categorical cardinalities: D_63 (5), D_64 (4), B_30 (3), B_38 (7).
-    - Date range: 2017-03-12 to 2018-03-13.
-    - Feasibility of time-aware check: feasible with caveats; primary split remains customer-stratified.
-  - Generated figures in `reports/figures/` adhering to `docs/DESIGN_SYSTEM.md`:
-    - `fig_class_balance.png`
-    - `fig_statements_per_customer.png`
-    - `fig_missingness_by_step.png`
-    - `fig_temporal_distribution.png`
-  - Wrote comprehensive findings report in `reports/01_eda.md`.
-  - Populated column taxonomy in `configs/columns.yaml`.
-  - Added unit test suite `tests/test_data_pipeline.py` (36/36 tests passing).
-- Next: **Phase 2 — Preprocessing & Feature Engineering (A, then B reuses)**
+  - Implemented `src/data/split.py`: generated customer-stratified splits (70% train / 15% valid / 15% test) saved to `data/processed/splits.parquet` with auxiliary `time_holdout` boolean flag.
+  - Implemented `src/data/clean.py`:
+    - Zero data leakage: fits median imputers and categorical mappings strictly on train split statements.
+    - Encoded categoricals (`D_63`, `D_64`, `B_30`, `B_38`) into integer codes (0..K-1, with -1 for unseen/missing).
+    - Added `<col>__missing` int8 indicators for features with missing values (`D_42`, `D_43`, `P_3`, `S_3`, `S_7`).
+    - Added sequence metadata: `step_idx` (0..12) and `n_statements` (2..13).
+    - Saved `data/interim/statements_clean.parquet` and `data/interim/clean_artifacts.json`.
+  - Implemented unit test suite `tests/test_split.py` proving:
+    - Zero customer overlap across splits (`train ∩ valid = ∅`, `train ∩ test = ∅`, `valid ∩ test = ∅`).
+    - Stratification preserved within ±0.4% across all splits.
+    - Imputer statistics are strictly isolated to train without test leakage.
+  - Full test suite passing (43/43 tests).
+- Next: **Phase 2 (Part 2) — Feature Engineering (`tabular.py` aggregates & `sequence.py` tensors `[N, 13, F]`)**
 - Blockers: _none_
 
 ## File map
