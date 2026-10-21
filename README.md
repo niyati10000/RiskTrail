@@ -110,15 +110,16 @@ cp .env.example .env
 ```
 *(On Windows PowerShell: `Copy-Item .env.example .env`)*
 
-### 6. Run Tests & Feature Engineering Pipeline
-Run the complete automated pytest verification suite (smoke, data pipeline, split isolation, tabular features):
+### 6. Run Tests & Feature Engineering Pipelines
+Run the complete automated pytest verification suite (smoke, data pipeline, split isolation, tabular features, sequence tensors):
 ```bash
 pytest -v
 ```
 
-Execute the tabular feature engineering pipeline:
+Execute the tabular and sequence feature engineering pipelines:
 ```bash
 python src/features/tabular.py
+python src/features/sequence.py
 ```
 
 ---
@@ -127,8 +128,8 @@ python src/features/tabular.py
 
 The project executes strictly in sequential phases according to `docs/PLAN.md`. Each phase must pass its explicit exit criteria before proceeding:
 - **Phase 0 (Completed)**: Setup, repo architecture, pinned dependencies, seed and I/O utilities, smoke tests, brain documentation.
-- **Phase 1**: Data Audit & EDA (`reports/01_eda.md`, `configs/columns.yaml`).
-- **Phase 2**: Preprocessing, Missing Indicators, Tabular Aggregates & Sequence Tensors (`[N, 13, F]`), Split Leakage Verification.
+- **Phase 1 (Completed)**: Data Audit & EDA (`reports/01_eda.md`, `configs/columns.yaml`).
+- **Phase 2 (Completed)**: Preprocessing, Missing Indicators, Customer-Stratified Splits (`splits.parquet`), Tabular Aggregates (`tabular.parquet`), and Front-Padded Sequence Tensors (`X_seq.npy`, `cat_seq.npy`, `mask.npy`, `y.npy`, `ids.npy`, `scaler.pkl`).
 - **Phase 3**: LightGBM Tabular Baseline (`results/lgbm/`).
 - **Phase 4**: Sequence Models (Masked GRU & Transformer) (`results/gru/`, `results/transformer/`).
 - **Phase 5**: Cross-Model Evaluation, Normalized Gini, Capture Rate @ 4%, Calibration Curves.

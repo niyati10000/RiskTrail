@@ -30,6 +30,8 @@ Predict which credit card customers will default from their sequence of monthly 
 - Leakage Prevention: All categorical integer encodings and numeric median imputations are fitted strictly on the TRAIN split customers; unseen/missing categories are mapped to `-1`. Missing indicators (`<col>__missing`) are int8 flags.
 - Tabular feature aggregation: strictly vectorized groupby computations without Python loops over customers. Naming format `{feature}__{agg}`. 9 numeric aggregations (`last`, `first`, `mean`, `std`, `min`, `max`, `delta_last_first`, `slope`, `delta_last_mean`) in `float32`; 4 categorical aggregations (`last`, `first`, `nunique`, `count`) in `int16`. Total tabular dataset has 216 columns (`customer_id`, 214 features, `target`) with 0.83 MB memory footprint for 1,000 customers.
 - Closed-form vectorized slope formulation: $\beta = \frac{\sum x_i y_i - \frac{n(n-1)}{2} \bar{y}}{\frac{n(n^2-1)}{12}}$ evaluated over $x_i = \text{step\_idx} \in [0, n-1]$. Single statement customers ($n \le 1$) and zero-variance series are safely assigned slope $0.0$ and std $0.0$, guaranteeing 0 NaNs and 0 Infs.
+- Sequence Tensors & Padding Invariant: 3D continuous tensor `X_seq.npy` `[N, 13, 22]` in `float32`, categorical embedding tensor `cat_seq.npy` `[N, 13, 4]` in `int64`, boolean key-padding mask `mask.npy` `[N, 13]`, label array `y.npy` `[N]` in `int8`, and customer identifiers `ids.npy` `[N]` share the exact identical customer row ordering, matching `tabular.parquet`. Front-padding places real statements at the tail such that index 12 is always the most recent statement (`mask[:, -1] == True`) and `mask.sum(axis=1)` equals `n_statements`.
+- Zero-Leakage Sequence Standardization: `StandardScaler` is fitted strictly on statement rows of `train` split customers and persisted to `data/processed/scaler.pkl` and `data/processed/scaler_params.json`. Padded positions are filled with `0.0` for standardized continuous features (representing the train mean) and `0` for categoricals.
 
 ## Team split (two people)
 | Person | Owns |
@@ -49,23 +51,22 @@ Predict which credit card customers will default from their sequence of monthly 
 LightGBM is often on par with sequence models here. If so, REPORT IT, then analyze where sequence models help (e.g., customers with deteriorating behavior over time).
 
 ## Status (update every session)
-- Current phase: **2 — Preprocessing & Feature Engineering (Part 2 COMPLETED)**
+- Current phase: **2 — Preprocessing & Feature Engineering (COMPLETED)**
 - Last done:
-  - Implemented `src/features/tabular.py`:
-    - Full vectorized summary aggregations across customer statement sequences with zero Python loops over customers.
-    - Numeric features (22 * 9 = 198 columns): `last`, `first`, `mean`, `std`, `min`, `max`, `delta_last_first`, `slope`, `delta_last_mean` in `float32`.
-    - Categorical features (4 * 4 = 16 columns): `last`, `first`, `nunique`, `count` in `int16`.
-    - Closed-form vectorized linear slope formulation matching `numpy.polyfit`.
-    - Merged `target` and saved to `data/processed/tabular.parquet` with `customer_id` and `target` (216 columns, 0.83 MB memory footprint, 0 NaNs / 0 Infs).
-  - Implemented unit test suite `tests/test_features.py` (7 tests):
-    - Parquet schema and shape verification (1,000 customers, 216 columns).
-    - Strict adherence to `{feature}__{agg}` naming convention.
-    - Zero NaNs, nulls, or Infs across all columns.
-    - Mathematical exactness verified on controlled synthetic customers.
-    - Edge cases verified: single-statement customers ($n=1$) and zero variance.
-    - Vectorized slopes proven to match `numpy.polyfit` reference across varying sequence lengths (2..13).
-  - Full test suite passing (50/50 tests).
-- Next: **Phase 2 (Part 3) — Sequence Tensors (`src/features/sequence.py` building `X_seq.npy`, `cat_seq.npy`, `mask.npy`, `y.npy`, `ids.npy`)**
+  - Implemented `src/features/sequence.py`:
+    - Built front-padded sequence tensors: `X_seq.npy` (`[1000, 13, 22]` float32), `cat_seq.npy` (`[1000, 13, 4]` int64), `mask.npy` (`[1000, 13]` bool), `y.npy` (`[1000]` int8), and `ids.npy` (`[1000]` object).
+    - Preserved identical customer row ordering across all sequence arrays, matching `tabular.parquet`.
+    - Strictly avoided leakage by fitting `StandardScaler` only on TRAIN split statements, persisted to `scaler.pkl` and `scaler_params.json`.
+    - Front-padding invariant enforced: index 12 is always the most recent statement, padded steps zeroed out, and `mask.sum(axis=1)` equals `n_statements`.
+  - Implemented unit test suite `tests/test_sequence.py` (6 tests):
+    - Shape, type, and file existence tests for all arrays.
+    - Proved `mask.sum(1) == n_statements` across all 1,000 customers.
+    - Proved `mask[:, -1] == True` and front-padding zeroing.
+    - Verified row-order alignment with `tabular.parquet` IDs and targets.
+    - Verified `StandardScaler` matches train statistics and does not leak test data.
+    - Controlled synthetic test verifying correct temporal placement.
+  - Full test suite passing (56/56 tests). All Phase 2 exit criteria in `docs/PLAN.md` satisfied.
+- Next: **Phase 3 — LightGBM Baseline (`src/models/lgbm.py`, hyperparameter tuning, metrics logging in `results/lgbm/`)**
 - Blockers: _none_
 
 ## File map
