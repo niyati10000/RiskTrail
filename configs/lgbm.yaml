@@ -1,7 +1,7 @@
 # LightGBM Baseline Model Configuration
 model_name: "lgbm"
 objective: "binary"
-metric: "auc"
+metric: "binary_logloss"
 boosting_type: "gbdt"
 learning_rate: 0.05
 num_leaves: 31

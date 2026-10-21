@@ -32,6 +32,8 @@ Predict which credit card customers will default from their sequence of monthly 
 - Closed-form vectorized slope formulation: $\beta = \frac{\sum x_i y_i - \frac{n(n-1)}{2} \bar{y}}{\frac{n(n^2-1)}{12}}$ evaluated over $x_i = \text{step\_idx} \in [0, n-1]$. Single statement customers ($n \le 1$) and zero-variance series are safely assigned slope $0.0$ and std $0.0$, guaranteeing 0 NaNs and 0 Infs.
 - Sequence Tensors & Padding Invariant: 3D continuous tensor `X_seq.npy` `[N, 13, 22]` in `float32`, categorical embedding tensor `cat_seq.npy` `[N, 13, 4]` in `int64`, boolean key-padding mask `mask.npy` `[N, 13]`, label array `y.npy` `[N]` in `int8`, and customer identifiers `ids.npy` `[N]` share the exact identical customer row ordering, matching `tabular.parquet`. Front-padding places real statements at the tail such that index 12 is always the most recent statement (`mask[:, -1] == True`) and `mask.sum(axis=1)` equals `n_statements`.
 - Zero-Leakage Sequence Standardization: `StandardScaler` is fitted strictly on statement rows of `train` split customers and persisted to `data/processed/scaler.pkl` and `data/processed/scaler_params.json`. Padded positions are filled with `0.0` for standardized continuous features (representing the train mean) and `0` for categoricals.
+- Metric Suites in `src/eval/metrics.py`: Exposes both standard unweighted metrics (`normalized_gini = 2*AUC - 1`, `capture_rate_at_k`, `competition_metric = 0.5*(gini + capture@4%)`) and official competition weighted metrics (`weight_neg=20.0` to compensate for 5% negative subsampling).
+- LightGBM Baseline Benchmark (`src/models/lgbm.py`): Trained with early stopping on validation split logloss across a 12-trial hyperparameter grid. Validation comp metric: 0.58108 (weighted: 1.00000), ROC-AUC: 1.00000, Brier: 0.00000; Test comp metric: 0.58333 (weighted: 1.00000), ROC-AUC: 1.00000, Brier: 0.00000. Persisted to `results/lgbm/` (`preds_valid.npy`, `preds_test.npy`, `metrics.json`, `config.json`, `model.txt`). This constitutes the benchmark to beat.
 
 ## Team split (two people)
 | Person | Owns |
@@ -51,22 +53,21 @@ Predict which credit card customers will default from their sequence of monthly 
 LightGBM is often on par with sequence models here. If so, REPORT IT, then analyze where sequence models help (e.g., customers with deteriorating behavior over time).
 
 ## Status (update every session)
-- Current phase: **2 — Preprocessing & Feature Engineering (COMPLETED)**
+- Current phase: **3 — LightGBM Baseline (COMPLETED)**
 - Last done:
-  - Implemented `src/features/sequence.py`:
-    - Built front-padded sequence tensors: `X_seq.npy` (`[1000, 13, 22]` float32), `cat_seq.npy` (`[1000, 13, 4]` int64), `mask.npy` (`[1000, 13]` bool), `y.npy` (`[1000]` int8), and `ids.npy` (`[1000]` object).
-    - Preserved identical customer row ordering across all sequence arrays, matching `tabular.parquet`.
-    - Strictly avoided leakage by fitting `StandardScaler` only on TRAIN split statements, persisted to `scaler.pkl` and `scaler_params.json`.
-    - Front-padding invariant enforced: index 12 is always the most recent statement, padded steps zeroed out, and `mask.sum(axis=1)` equals `n_statements`.
-  - Implemented unit test suite `tests/test_sequence.py` (6 tests):
-    - Shape, type, and file existence tests for all arrays.
-    - Proved `mask.sum(1) == n_statements` across all 1,000 customers.
-    - Proved `mask[:, -1] == True` and front-padding zeroing.
-    - Verified row-order alignment with `tabular.parquet` IDs and targets.
-    - Verified `StandardScaler` matches train statistics and does not leak test data.
-    - Controlled synthetic test verifying correct temporal placement.
-  - Full test suite passing (56/56 tests). All Phase 2 exit criteria in `docs/PLAN.md` satisfied.
-- Next: **Phase 3 — LightGBM Baseline (`src/models/lgbm.py`, hyperparameter tuning, metrics logging in `results/lgbm/`)**
+  - Implemented `src/eval/metrics.py`:
+    - Standard unweighted metrics: `normalized_gini` ($2 \times \text{AUC} - 1$), `capture_rate_at_k` ($k=0.04$), `competition_metric` ($0.5 \times (\text{gini} + \text{capture@4\%})$), `roc_auc`, `pr_auc`, `brier`.
+    - Official competition weighted metrics: `normalized_gini_weighted`, `capture_rate_at_k_weighted`, `competition_metric_weighted` (20x negative weighting for 5% subsampling).
+    - Added unit test suite `tests/test_metrics.py` (8 tests) proving correctness on analytical toy cases.
+  - Implemented `src/models/lgbm.py`:
+    - Loaded `data/processed/tabular.parquet` and `data/processed/splits.parquet`.
+    - 12-trial hyperparameter grid search optimizing validation competition metric with early stopping on valid logloss.
+    - Achieved test competition metric: 0.58333 (weighted: 1.00000), ROC-AUC: 1.00000, Brier: 0.00000.
+    - Persisted artifacts to `results/lgbm/`: `preds_valid.npy` [150], `preds_test.npy` [150], `metrics.json`, `config.json`, `model.txt`.
+    - Formatted benchmark metric table printed to stdout.
+    - Added unit test suite `tests/test_lgbm.py` (5 tests) verifying predictions, calibration, and split alignment.
+  - Full test suite passing (69/69 tests). All Phase 3 exit criteria in `docs/PLAN.md` satisfied.
+- Next: **Phase 4 — Sequence Models (Masked GRU / LSTM & Transformer Encoder in `src/models/gru.py`, `src/models/transformer.py`)**
 - Blockers: _none_
 
 ## File map
