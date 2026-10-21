@@ -1,0 +1,24 @@
+{
+  "valid": {
+    "competition_metric": 0.58108,
+    "normalized_gini": 1.0,
+    "capture_rate_at_4pct": 0.16216,
+    "competition_metric_weighted": 1.0,
+    "normalized_gini_weighted": 1.0,
+    "capture_rate_at_4pct_weighted": 1.0,
+    "roc_auc": 1.0,
+    "pr_auc": 1.0,
+    "brier": 0.03571
+  },
+  "test": {
+    "competition_metric": 0.58333,
+    "normalized_gini": 1.0,
+    "capture_rate_at_4pct": 0.16667,
+    "competition_metric_weighted": 1.0,
+    "normalized_gini_weighted": 1.0,
+    "capture_rate_at_4pct_weighted": 1.0,
+    "roc_auc": 1.0,
+    "pr_auc": 1.0,
+    "brier": 0.03641
+  }
+}

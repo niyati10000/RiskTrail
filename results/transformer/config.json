@@ -1,0 +1,28 @@
+{
+  "model_name": "transformer",
+  "backbone": "transformer",
+  "num_features": 22,
+  "cat_cardinalities": [
+    5,
+    4,
+    3,
+    7
+  ],
+  "d_model": 64,
+  "nhead": 4,
+  "num_layers": 2,
+  "dim_feedforward": 128,
+  "pooling": "attention",
+  "attn_dim": 32,
+  "mlp_dims": [
+    64,
+    32
+  ],
+  "total_parameters": 77645,
+  "best_epoch": 1,
+  "total_epochs": 8,
+  "pos_weight": 3.0936,
+  "learning_rate": 0.0005,
+  "seed": 42,
+  "training_time_seconds": 7.47
+}

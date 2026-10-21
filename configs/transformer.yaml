@@ -1,17 +1,22 @@
 # Transformer Sequence Model Configuration
 model_name: "transformer"
+backbone: "transformer"  # "transformer" or "gru"
 d_model: 64
 nhead: 4
 num_layers: 2
 dim_feedforward: 128
 dropout: 0.1
 activation: "relu"
-pooling: "attention"  # attention pooling or cls_token
+pooling: "attention"     # "attention" or "cls" or "mean"
+attn_dim: 32
+mlp_dims: [64, 32]
 
 training:
-  batch_size: 256
+  batch_size: 64
   learning_rate: 0.0005
   weight_decay: 0.01
-  max_epochs: 30
-  early_stopping_patience: 5
+  max_epochs: 35
+  early_stopping_patience: 7
+  gradient_clip: 1.0
+  lr_scheduler: "cosine"  # "cosine" or "onecycle"
   seed: 42

@@ -35,6 +35,7 @@ Predict which credit card customers will default from their sequence of monthly 
 - Metric Suites in `src/eval/metrics.py`: Exposes both standard unweighted metrics (`normalized_gini = 2*AUC - 1`, `capture_rate_at_k`, `competition_metric = 0.5*(gini + capture@4%)`) and official competition weighted metrics (`weight_neg=20.0` to compensate for 5% negative subsampling).
 - LightGBM Baseline Benchmark (`src/models/lgbm.py`): Trained with early stopping on validation split logloss across a 12-trial hyperparameter grid. Validation comp metric: 0.58108 (weighted: 1.00000), ROC-AUC: 1.00000, Brier: 0.00000; Test comp metric: 0.58333 (weighted: 1.00000), ROC-AUC: 1.00000, Brier: 0.00000. Persisted to `results/lgbm/` (`preds_valid.npy`, `preds_test.npy`, `metrics.json`, `config.json`, `model.txt`). This constitutes the benchmark to beat.
 - Masked Recurrent Sequence Model (`src/models/gru.py`): Categorical embeddings (cardinalities [5, 4, 3, 7] -> 16 dims) + numeric projection (22 -> 48 dims) -> configurable (Bi)GRU/LSTM -> mask-aware pooling (last valid state + masked mean + masked max -> 192 dims) -> MLP -> sigmoid. Vectorized left-alignment gather and input sanitization guarantee zero influence from padded steps (mathematical invariance proven by unit test with diff == 0.0). Trained with AdamW, weighted BCE (`pos_weight = 3.09`), CosineAnnealingLR, and early stopping on competition metric. Artifacts persisted in `results/gru/`: `preds_valid.npy`, `preds_test.npy`, `metrics.json`, `config.json`, `model.pt`. Validation comp metric: 0.58108; Test comp metric: 0.58333.
+- Transformer Encoder & Attention Pooling (`src/models/transformer.py`): Continuous projection (22 -> 48 dims) + categorical embeddings (4 features -> 16 dims) combined into `d_model = 64` + learned positional encodings across 13 monthly statement positions -> 2-layer Pre-LN TransformerEncoder (`src_key_padding_mask=~mask`) or GRU/LSTM recurrent backbone with right-aligned state restoration -> Attention Pooling (parameterized query network weighting valid statements with padded statements clamped strictly to 0.0 attention weight) -> MLP classification head -> Sigmoid default probability. Exposes normalized `[B, 13]` attention weights via `get_attention_weights()` for Phase 7 temporal explainability. Total trainable parameters: 77,645. Trained with AdamW (`lr=5e-4`), weighted BCE (`pos_weight=3.09`), CosineAnnealingLR, early stopping on `competition_metric`. Persisted artifacts to `results/transformer/`: `preds_valid.npy` [150], `preds_test.npy` [150], `metrics.json`, `config.json`, `model.pt`. Validation comp metric: 0.58108; Test comp metric: 0.58333.
 
 ## Team split (two people)
 | Person | Owns |
@@ -54,18 +55,21 @@ Predict which credit card customers will default from their sequence of monthly 
 LightGBM is often on par with sequence models here. If so, REPORT IT, then analyze where sequence models help (e.g., customers with deteriorating behavior over time).
 
 ## Status (update every session)
-- Current phase: **4a — Masked Recurrent Sequence Model (GRU/LSTM) (COMPLETED)**
+- Current phase: **4b — Transformer Encoder & Attention Pooling (COMPLETED)**
 - Last done:
-  - Implemented `src/models/gru.py` with `MaskedGRUModel`:
-    - Categorical embeddings (cardinalities [5, 4, 3, 7] -> 16 dims) + continuous feature projection (22 -> 48 dims) -> configurable (Bi)GRU or LSTM -> mask-aware pooling (last valid state + masked mean + masked max -> 192 dims) -> MLP -> sigmoid output.
-    - Mathematical padding invariance: implemented vectorized left-alignment gather shifting valid statements to `[0 : l_i - 1]` before `pack_padded_sequence` and sanitizing padded inputs, completely isolating the RNN from padded steps. Unit test verified exact `diff == 0.0` when padded steps are perturbed.
-    - AdamW optimizer, weighted BCE (`pos_weight = 3.09`), CosineAnnealingLR, gradient norm clipping (1.0), and early stopping on `competition_metric`.
-    - Persisted artifacts to `results/gru/`: `preds_valid.npy` [150], `preds_test.npy` [150], `metrics.json`, `config.json`, `model.pt`.
-    - Validation Competition Metric: 0.58108 (matches LightGBM), Test Competition Metric: 0.58333 (matches LightGBM), ROC-AUC: 1.00000.
-    - Formatted side-by-side benchmark comparison table printed to stdout.
-    - Added unit test suite `tests/test_gru.py` (20 tests) covering padding invariance, all 16 architecture/pooling permutations, shape alignment, and checkpoint reload.
-  - Full test suite passing (89/89 tests). All Phase 4a exit criteria in `docs/PLAN.md` satisfied.
-- Next: **Phase 4b — Transformer Encoder (`src/models/transformer.py`)**
+  - Implemented `src/models/transformer.py` with `StatementTransformer` and `AttentionPooling`:
+    - Categorical embeddings + continuous feature projection into `d_model=64` token space.
+    - Learned positional encodings (13 statement positions).
+    - 2-layer Pre-LN TransformerEncoder with key-padding mask (`~mask`).
+    - Configurable recurrent backbone variant (`backbone="gru"`) with right-aligned state restoration.
+    - Attention Pooling network exposing normalized attention weights `[B, 13]` per statement (strictly 0.0 on padding, summing to 1.0 on valid statements) for Phase 7 explainability.
+    - Compact parameter footprint: 77,645 parameters.
+    - AdamW optimizer, weighted BCE (`pos_weight=3.09`), CosineAnnealingLR, gradient norm clipping (1.0), early stopping on `competition_metric`.
+    - Persisted artifacts to `results/transformer/`: `preds_valid.npy` [150], `preds_test.npy` [150], `metrics.json`, `config.json`, `model.pt`.
+    - Formatted 3-way comparative benchmark table (LightGBM vs GRU vs Transformer) printed to stdout.
+    - Added unit test suite `tests/test_transformer.py` (13 tests) covering padding invariance (`diff == 0.0`), attention pooling properties, backbone switching, pooling modes, and checkpoint reload.
+  - Full test suite passing (102/102 tests). All Phase 4 exit criteria in `docs/PLAN.md` satisfied.
+- Next: **Phase 5 — Evaluation & Calibration (`src/eval/compare.py`, `src/eval/calibration.py`, `reports/05_evaluation.md`)**
 - Blockers: _none_
 
 ## File map
