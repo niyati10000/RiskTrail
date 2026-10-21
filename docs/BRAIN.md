@@ -36,6 +36,7 @@ Predict which credit card customers will default from their sequence of monthly 
 - LightGBM Baseline Benchmark (`src/models/lgbm.py`): Trained with early stopping on validation split logloss across a 12-trial hyperparameter grid. Validation comp metric: 0.58108 (weighted: 1.00000), ROC-AUC: 1.00000, Brier: 0.00000; Test comp metric: 0.58333 (weighted: 1.00000), ROC-AUC: 1.00000, Brier: 0.00000. Persisted to `results/lgbm/` (`preds_valid.npy`, `preds_test.npy`, `metrics.json`, `config.json`, `model.txt`). This constitutes the benchmark to beat.
 - Masked Recurrent Sequence Model (`src/models/gru.py`): Categorical embeddings (cardinalities [5, 4, 3, 7] -> 16 dims) + numeric projection (22 -> 48 dims) -> configurable (Bi)GRU/LSTM -> mask-aware pooling (last valid state + masked mean + masked max -> 192 dims) -> MLP -> sigmoid. Vectorized left-alignment gather and input sanitization guarantee zero influence from padded steps (mathematical invariance proven by unit test with diff == 0.0). Trained with AdamW, weighted BCE (`pos_weight = 3.09`), CosineAnnealingLR, and early stopping on competition metric. Artifacts persisted in `results/gru/`: `preds_valid.npy`, `preds_test.npy`, `metrics.json`, `config.json`, `model.pt`. Validation comp metric: 0.58108; Test comp metric: 0.58333.
 - Transformer Encoder & Attention Pooling (`src/models/transformer.py`): Continuous projection (22 -> 48 dims) + categorical embeddings (4 features -> 16 dims) combined into `d_model = 64` + learned positional encodings across 13 monthly statement positions -> 2-layer Pre-LN TransformerEncoder (`src_key_padding_mask=~mask`) or GRU/LSTM recurrent backbone with right-aligned state restoration -> Attention Pooling (parameterized query network weighting valid statements with padded statements clamped strictly to 0.0 attention weight) -> MLP classification head -> Sigmoid default probability. Exposes normalized `[B, 13]` attention weights via `get_attention_weights()` for Phase 7 temporal explainability. Total trainable parameters: 77,645. Trained with AdamW (`lr=5e-4`), weighted BCE (`pos_weight=3.09`), CosineAnnealingLR, early stopping on `competition_metric`. Persisted artifacts to `results/transformer/`: `preds_valid.npy` [150], `preds_test.npy` [150], `metrics.json`, `config.json`, `model.pt`. Validation comp metric: 0.58108; Test comp metric: 0.58333.
+- Cross-Model Evaluation, Calibration & Trend Segmentation (`src/eval/compare.py`, `src/eval/calibration.py`): LightGBM matches sequence models (Masked GRU, StatementTransformer) on overall ranking discrimination (Test Comp Metric = 0.5833, ROC-AUC = 1.0000, PR-AUC = 1.0000). Class-weighted sequence models exhibit positive prior probability shift, which is corrected via post-hoc Platt scaling and Isotonic regression fitted strictly on the validation split (reducing GRU Brier score from 0.0310 to 0.0000, and Transformer Brier from 0.0364 to 0.0001). Customer trajectory segmentation by delinquency slope (`D_39__slope > 0`) concentrates 100% of test defaulters into the deteriorating cohort ($N=67$, 36 defaults), while calibrated models assign 0.00% predicted risk to the stable non-default cohort ($N=83$). Artifacts and figures persisted to `reports/figures/` (`fig_model_comparison.png`, `fig_calibration.png`, `fig_trend_segment.png`) and report written to `reports/05_evaluation.md`.
 
 ## Team split (two people)
 | Person | Owns |
@@ -55,21 +56,23 @@ Predict which credit card customers will default from their sequence of monthly 
 LightGBM is often on par with sequence models here. If so, REPORT IT, then analyze where sequence models help (e.g., customers with deteriorating behavior over time).
 
 ## Status (update every session)
-- Current phase: **4b — Transformer Encoder & Attention Pooling (COMPLETED)**
+- Current phase: **5 — Cross-Model Evaluation & Calibration (COMPLETED)**
 - Last done:
-  - Implemented `src/models/transformer.py` with `StatementTransformer` and `AttentionPooling`:
-    - Categorical embeddings + continuous feature projection into `d_model=64` token space.
-    - Learned positional encodings (13 statement positions).
-    - 2-layer Pre-LN TransformerEncoder with key-padding mask (`~mask`).
-    - Configurable recurrent backbone variant (`backbone="gru"`) with right-aligned state restoration.
-    - Attention Pooling network exposing normalized attention weights `[B, 13]` per statement (strictly 0.0 on padding, summing to 1.0 on valid statements) for Phase 7 explainability.
-    - Compact parameter footprint: 77,645 parameters.
-    - AdamW optimizer, weighted BCE (`pos_weight=3.09`), CosineAnnealingLR, gradient norm clipping (1.0), early stopping on `competition_metric`.
-    - Persisted artifacts to `results/transformer/`: `preds_valid.npy` [150], `preds_test.npy` [150], `metrics.json`, `config.json`, `model.pt`.
-    - Formatted 3-way comparative benchmark table (LightGBM vs GRU vs Transformer) printed to stdout.
-    - Added unit test suite `tests/test_transformer.py` (13 tests) covering padding invariance (`diff == 0.0`), attention pooling properties, backbone switching, pooling modes, and checkpoint reload.
-  - Full test suite passing (102/102 tests). All Phase 4 exit criteria in `docs/PLAN.md` satisfied.
-- Next: **Phase 5 — Evaluation & Calibration (`src/eval/compare.py`, `src/eval/calibration.py`, `reports/05_evaluation.md`)**
+  - Implemented `src/eval/calibration.py`:
+    - `compute_calibration_curve`, `compute_expected_calibration_error`, and `ModelCalibrator` (Platt scaling & Isotonic regression).
+  - Implemented `src/eval/compare.py`:
+    - Reads standardized test and validation predictions and metrics across LightGBM, GRU, and Transformer.
+    - Fits Platt and Isotonic calibration on validation split and evaluates on test split.
+    - Persisted calibrated predictions: `preds_test_isotonic.npy` and `preds_test_platt.npy` in `results/gru/`, `results/transformer/`, `results/lgbm/`.
+    - Customer trajectory segmentation: Deteriorating (`D_39__slope > 0`, $N=67$, 36 defaults, 53.7% default rate, containing 100% of test defaulters) vs Stable (`D_39__slope <= 0`, $N=83$, 0 defaults).
+    - Generated publication figures matching `docs/DESIGN_SYSTEM.md`:
+      - `reports/figures/fig_model_comparison.png`
+      - `reports/figures/fig_calibration.png`
+      - `reports/figures/fig_trend_segment.png`
+    - Authored comprehensive report in `reports/05_evaluation.md`.
+    - Added unit test suite `tests/test_eval.py` (9 tests) verifying calibration metrics, calibrator fitting, comparison table compilation, segmentation, and figure integrity.
+  - Full test suite passing (111/111 tests). All Phase 5 exit criteria in `docs/PLAN.md` satisfied.
+- Next: **Phase 6 — Business Profit Simulation (`src/business/profit.py`, `configs/business.yaml`, `reports/06_profit.md`)**
 - Blockers: _none_
 
 ## File map
