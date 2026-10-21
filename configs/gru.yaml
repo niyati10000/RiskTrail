@@ -1,0 +1,16 @@
+# GRU Sequence Model Configuration
+model_name: "gru"
+hidden_dim: 64
+num_layers: 2
+bidirectional: false
+dropout: 0.2
+pooling: "masked_last"  # or masked_mean, masked_max
+mlp_dims: [64, 32]
+
+training:
+  batch_size: 256
+  learning_rate: 0.001
+  weight_decay: 0.01
+  max_epochs: 30
+  early_stopping_patience: 5
+  seed: 42

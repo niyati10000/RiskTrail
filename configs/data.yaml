@@ -1,0 +1,21 @@
+# Data configuration and paths
+seed: 42
+seq_len: 13
+padding_side: "front"  # Front-padding preserves the most recent statement at index -1
+
+paths:
+  raw_dir: "data/raw"
+  interim_dir: "data/interim"
+  processed_dir: "data/processed"
+  results_dir: "results"
+  splits_file: "data/processed/splits.parquet"
+  tabular_file: "data/processed/tabular.parquet"
+  x_seq_file: "data/processed/X_seq.npy"
+  mask_file: "data/processed/mask.npy"
+  y_file: "data/processed/y.npy"
+  ids_file: "data/processed/ids.npy"
+
+split_ratios:
+  train: 0.70
+  valid: 0.15
+  test: 0.15

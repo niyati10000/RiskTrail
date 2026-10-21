@@ -1,0 +1,22 @@
+# Core Data Processing
+pandas==3.0.6
+pyarrow==26.0.0
+numpy==2.4.6
+
+# Machine Learning & Modeling
+scikit-learn==1.9.1
+lightgbm==4.7.0
+torch==2.14.1
+shap==0.51.0
+
+# Visualization & Reporting
+matplotlib==3.11.2
+
+# Configuration & Utilities
+pyyaml==6.0.3
+
+# Testing & Quality
+pytest==9.1.1
+
+# Interactive Demo Application
+streamlit==1.66.0

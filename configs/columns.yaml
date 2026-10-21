@@ -1,0 +1,9 @@
+# Column type classifications for RiskTrail
+# Concrete column mappings will be populated during Phase 1 (Data Audit & EDA)
+
+id_column: "customer_id"
+date_column: "statement_date"
+target_column: "target"
+
+categorical_features: []
+numeric_features: []
