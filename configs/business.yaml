@@ -1,9 +1,9 @@
 # Business Profit Simulation Configuration
-profit_per_good: 100.0       # Assumption: expected net margin per non-defaulting customer ($)
-loss_per_default: 500.0      # Assumption: expected loss per defaulting customer ($)
+profit_per_good: 100.0       # Net margin per non-defaulting customer ($)
+loss_per_default: 500.0      # Net loss per defaulting customer ($)
 cutoff_start: 0.0
 cutoff_end: 1.0
 cutoff_step: 0.005
 
 sensitivity:
-  loss_to_profit_ratios: [2.0, 3.0, 5.0, 7.5, 10.0]
+  loss_to_profit_ratios: [2.0, 3.0, 5.0, 7.5, 10.0, 15.0, 20.0]
