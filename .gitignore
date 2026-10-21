@@ -1,6 +1,7 @@
 # Data directories and files (never commit raw/processed data)
 /data/
 *.parquet
+!app/*.parquet
 *.feather
 
 # Model prediction files containing customer predictions

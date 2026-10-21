@@ -40,6 +40,7 @@ Predict which credit card customers will default from their sequence of monthly 
 - Business Profit Simulation & Cutoff Policy Optimization (`src/business/profit.py`, `configs/business.yaml`): Evaluates economic credit policies under $V_{\text{good}} = \$100$ net margin and $L_{\text{default}} = \$500$ charge-off loss across approval cutoffs $c \in [0, 1]$. While naive "Approve Everyone" yields a $-\$6,600$ loss on the test cohort ($N=150$, 114 good, 36 defaults), deploying LightGBM, Calibrated GRU, or Calibrated Transformer achieves the theoretical Oracle ceiling of $+\$11,400$ ($+\$18,000$ value-add) by cleanly approving all 114 good accounts (76.0% approval rate) with zero defaults. Uncalibrated neural sequence models require higher cutoffs ($c^* \approx 0.195 - 0.265$) due to class-weighting logit shift, whereas Isotonic Calibration restores optimal operational cutoffs to $c^* \le 0.05$. Loss/profit sensitivity analysis across 2x to 20x ratios proves consistent cutoff stability and model parity. Artifacts persisted to `reports/figures/fig_profit_by_cutoff.png` and `reports/06_business.md`.
 - Model Explainability & Compliance Reason Codes (`src/explain/shap_lgbm.py`, `src/explain/seq_importance.py`): LightGBM feature attribution via TreeExplainer identifies delinquency features (`D_39__last`, `D_39__mean`, `D_39__max`, `D_39__slope`) as primary risk drivers (>75% importance), generating regulatory top-5 adverse-action reason codes for declined applicants. StatementTransformer attention pooling exposes temporal attention across statement history, demonstrating strong recency weighting peaking at statement $T$ (17.7%) and $T-2$ (10.2%). Permutation importance on the sequence model confirms that destroying the Balance group ($B$) and the latest statement ($T$) causes the largest direct competition metric drops. Critical methodological caveat documented: attention weights represent internal information pooling, not counterfactual or causal attribution. Artifacts persisted to `reports/figures/` (`fig_shap_summary.png`, `fig_attention_by_month.png`) and report written to `reports/07_explainability.md`.
 - Final Report Synthesis & Ownership Protocol (`reports/FINAL_REPORT.md`): Consolidates the complete project lifecycle into an 8-section institutional research document adhering to `docs/DESIGN_SYSTEM.md`. Preserves explicit ownership placeholders `[A writes]` (data preprocessing, tabular aggregates, LightGBM) and `[B writes]` (sequence tensors, Masked GRU, StatementTransformer, padding invariance proofs). Shared sections embed all 10 standard publication figures, performance benchmarks, calibration diagnostics, business profit cutoff optimization ($V_{\text{good}}=\$100, L_{\text{default}}=\$500$), loss/profit sensitivity grids (2x to 20x), TreeExplainer SHAP attribution, temporal attention profiles, and worked adverse action case studies. Explicitly details project limitations (synthetic benchmark licensing, assumed static margins, absence of ECOA demographic fairness audits, 13-statement horizon) and future research horizons (risk-based APR pricing, counterfactual recourse, pre-trained foundation models).
+- Standalone Demo & Hugging Face Spaces Deployment (`app/streamlit_app.py`, `src/data/create_sample.py`, `docs/HF_SPACES_DEPLOY.md`): Zero proprietary or real customer records are bundled or deployed. A synthetic sample generator (`src/data/create_sample.py`) produces 50 realistic, synthetic accounts (`SYNTH_0001` - `SYNTH_0050`) matching the 214-feature schema, pre-scores them with the saved LightGBM benchmark model (`app/model.txt`), precalculates TreeExplainer SHAP values (`app/sample_shap.npy`), and creates 13-month statement histories (`app/sample_statements.parquet`). Streamlit application (`app/streamlit_app.py`) runs in a standalone container with pinned dependencies (`app/requirements.txt`) and YAML front-matter in `README.md`.
 
 ## Team split (two people)
 | Person | Owns |
@@ -59,17 +60,22 @@ Predict which credit card customers will default from their sequence of monthly 
 LightGBM is often on par with sequence models here. If so, REPORT IT, then analyze where sequence models help (e.g., customers with deteriorating behavior over time).
 
 ## Status (update every session)
-- Current phase: **8b — Interactive Streamlit Demo App & Final Packaging (COMPLETED)**
+- Current phase: **8b — Interactive Streamlit Demo App & Hugging Face Deployment (COMPLETED)**
 - Last done:
-  - Implemented `app/app.py` adhering to `docs/DESIGN_SYSTEM.md`:
-    - Sidebar with model selection (LightGBM, Calibrated Transformer, Calibrated GRU, Uncalibrated variants), business assumptions ($V_{\text{good}}=\$100, L_{\text{default}}=\$500$), approval cutoff slider ($0..1$), applicant cohort filters, and quick-load for worked case study borrower.
-    - Tab 1 (**Score & Underwriting**): Visual risk gauge meter, real-time APPROVED / DECLINED status banner, credit trajectory summary metrics, and evaluation ground truth.
-    - Tab 2 (**Portfolio Profit Curve**): Interactive portfolio profit simulation curve across cutoffs, peak profit ($+\$11,400$) at optimal cutoff, comparison against "Approve Everyone" baseline ($-\$6,600$), and policy benchmarking table.
-    - Tab 3 (**Why This Decision**): Top-5 SHAP adverse-action risk drivers (horizontal bar chart in red/blue), structured reason code breakdown, 13-statement temporal attention timeline from StatementTransformer, formal ECOA/FCRA adverse-action statement generator, and scientific interpretability disclosure (*Jain & Wallace, 2019*).
-  - Created test suite `tests/test_app.py` (7 tests verifying data loader contracts, plot generation, and decision logic).
-  - Updated `README.md` with complete clean-checkout reproduction steps, architecture overview, and Streamlit launch commands.
-  - Full test suite passing: **134 / 134 tests cleanly pass**. All Phase 8b exit criteria satisfied.
-- Next: Project successfully completed across all Phases 0 to 8b. Ready for production deployment and executive demonstration.
+  - Built `src/data/create_sample.py` to generate an anonymized, small synthetic sample (50 accounts, 214 features, 13-month statement histories) and precompute TreeExplainer SHAP values without exposing any real customer data.
+  - Implemented `app/streamlit_app.py` adhering to `docs/DESIGN_SYSTEM.md`:
+    - Sidebar with underwriting cutoff slider ($0..1$), profit/loss inputs ($V_{\text{good}}=\$100, L_{\text{default}}=\$500$), applicant cohort filters, and quick selector for high-delinquency worked case study (`SYNTH_0045`).
+    - Tab 1 (**Score**): Underwriting risk gauge meter, real-time APPROVED / DECLINED status banner, credit trajectory summary metrics, and synthetic ground truth.
+    - Tab 2 (**Profit Curve**): Expected portfolio profit simulation across cutoffs, optimal cutoff peak profit, comparison against "Approve Everyone" and "Decline Everyone" baselines, and policy benchmarking table.
+    - Tab 3 (**Why This Decision**): Top-5 SHAP adverse-action risk drivers (horizontal bar chart in red/blue), structured reason code breakdown, 13-statement temporal trajectory chart ($D\_39$ delinquency and $B\_1$ revolving balance), formal ECOA/FCRA adverse-action statement generator, and mandatory educational disclaimer.
+  - Prepared Hugging Face Spaces deployment:
+    - Added YAML front-matter to `README.md` (`sdk: streamlit`, `app_file: app/streamlit_app.py`).
+    - Created `app/requirements.txt` with pinned deployment dependencies.
+    - Authored deployment guide and security checklist in `docs/HF_SPACES_DEPLOY.md` from `docs/SECURITY_AND_ACCESS.md`.
+    - Bundled portable text model `app/model.txt` and synthetic data in `app/`.
+  - Created test suite `tests/test_app.py` (9 tests verifying data loaders, plot generation, and decision logic).
+  - Full test suite passing: **136 / 136 tests cleanly pass**. All Phase 8b exit criteria satisfied.
+- Next: All planned phases (0 through 8b) completed and verified. Ready for cloud deployment or production demo.
 - Blockers: _none_
 
 ## File map

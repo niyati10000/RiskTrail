@@ -1,3 +1,15 @@
+---
+title: RiskTrail Credit Risk & Profit Optimization
+emoji: 💳
+colorFrom: blue
+colorTo: purple
+sdk: streamlit
+sdk_version: 1.66.0
+app_file: app/streamlit_app.py
+pinned: false
+license: mit
+---
+
 # RiskTrail — Credit Risk Sequence Modeling & Profit Optimization
 
 > **Credit Default Risk Prediction from Monthly Statement Sequences, Tabular vs Sequence Architecture Benchmarking, Profit-Maximizing Approval Policies, and Lender-Grade Explainability.**
@@ -18,7 +30,7 @@ RiskTrail benchmarks credit risk prediction on customer-level statement historie
 4. **Lender Economics & Business Optimization**: Translates predicted default probabilities into profit-maximizing lending cutoffs under bank revenue assumptions:
    $$\text{Profit}(c) = V_{\text{good}} \cdot N_{\text{good, app}}(c) - L_{\text{default}} \cdot N_{\text{def, app}}(c)$$
 5. **Lender-Grade Explainability**: TreeExplainer SHAP top-5 adverse-action reason codes for rejected applicants and temporal statement attention allocation from `StatementTransformer`.
-6. **Executive Report & Interactive Demo**: Institutional 8-section synthesis (`reports/FINAL_REPORT.md`) and interactive Streamlit web dashboard (`app/app.py`).
+6. **Executive Report & Interactive Demo**: Institutional 8-section synthesis (`reports/FINAL_REPORT.md`) and interactive Streamlit web dashboard (`app/streamlit_app.py`).
 
 ---
 
@@ -33,7 +45,8 @@ RiskTrail/
 │   ├── DESIGN_SYSTEM.md   # Visualization palette & demo standards
 │   ├── PLAN.md            # Phased roadmap & exit gates
 │   ├── SECURITY_AND_ACCESS.md # Governance, secrets, & ethical lending
-│   └── PROMPTS.md         # Phased execution prompts & audit trail
+│   ├── PROMPTS.md         # Phased execution prompts & audit trail
+│   └── HF_SPACES_DEPLOY.md # Hugging Face Spaces deployment & checklist
 ├── configs/               # YAML configurations
 │   ├── columns.yaml       # Column classifications (id, date, categoricals, numerics)
 │   ├── data.yaml          # Paths, max sequence length (13), padding side, seed
@@ -46,7 +59,7 @@ RiskTrail/
 │   ├── interim/           # Cleaned and encoded Parquet statements
 │   └── processed/         # Tabular parquet, sequence tensors, splits.parquet
 ├── src/                   # Core modular package
-│   ├── data/              # load.py, clean.py, split.py
+│   ├── data/              # load.py, clean.py, split.py, create_sample.py
 │   ├── features/          # tabular.py, sequence.py
 │   ├── models/            # lgbm.py, gru.py, transformer.py
 │   ├── eval/              # metrics.py, calibration.py, compare.py
@@ -66,7 +79,15 @@ RiskTrail/
 │   ├── 07_explainability.md # Adverse-action SHAP & attention report
 │   └── FINAL_REPORT.md    # Consolidated 8-section institutional research document
 ├── tests/                 # Unit, smoke, and integration test suite (134 tests)
-├── app/                   # Streamlit interactive decision demo (app/app.py)
+├── app/                   # Streamlit demo & synthetic artifacts
+│   ├── streamlit_app.py   # Main demo interface (Score, Profit Curve, Why Tabs)
+│   ├── app.py             # Entrypoint wrapper
+│   ├── sample_data.parquet # Anonymized synthetic customer sample (50 accounts)
+│   ├── sample_statements.parquet # Synthetic 13-month statement histories
+│   ├── sample_shap.npy    # Precomputed SHAP values for sample accounts
+│   ├── shap_features.json # 214 feature names list
+│   ├── model.txt          # Portable LightGBM booster model
+│   └── requirements.txt   # Pinned dependencies for Hugging Face Spaces
 ├── requirements.txt       # Pinned production & research dependencies
 ├── .env.example           # Environment variables template
 ├── .gitignore             # Secrets, data, cache, and prediction ignores
@@ -144,33 +165,60 @@ python src/business/profit.py
 # 5. Explainability (SHAP TreeExplainer, Reason Codes & Statement Attention)
 python src/explain/shap_lgbm.py
 python src/explain/seq_importance.py
+
+# 6. Generate Synthetic Demo Sample for Standalone / Cloud Deployment
+python src/data/create_sample.py
 ```
 
 ---
 
 ## Interactive Streamlit Demo Application
 
-Launch the interactive underwriting decision dashboard:
+Launch the interactive underwriting decision dashboard locally:
 
 ```bash
-streamlit run app/app.py
+streamlit run app/streamlit_app.py
 ```
+*(or run `streamlit run app/app.py`)*
 
 ### Key Capabilities of the Demo
 1. **Score & Underwriting Tab**:
-   - Select any test applicant or load the worked case study borrower (`e4627d06d97d...`).
+   - Select any synthetic applicant or load the designated case study borrower (`SYNTH_0045`).
    - Dynamic **Underwriting Risk Gauge** indicating customer score vs approval threshold.
    - Real-time **APPROVED** or **DECLINED** policy decision banner at chosen cutoff.
    - Financial trajectory metrics (delinquency slope $\beta$, revolving balance $B\_1$, payment ratio $P\_2$).
 2. **Profit Curve Tab**:
    - Interactive portfolio profit simulation curve across cutoffs $c \in [0, 1]$.
-   - Visual comparison against the "Approve Everyone" baseline ($-\$6,600$) and peak profit ($+\$11,400$).
+   - Visual comparison against the "Approve Everyone" baseline and peak profit at optimal cutoff $c^*$.
    - Policy KPI benchmarking table (Current vs Optimal vs Approve-All vs Decline-All).
 3. **Why This Decision (Explainability) Tab**:
    - Top-5 risk drivers horizontal bar chart (red = raises risk, blue = lowers risk) using TreeExplainer SHAP.
    - Structured adverse-action reason codes with lender-grade descriptions.
-   - 13-statement temporal attention timeline from `StatementTransformer` showing where the model placed attention across statement history.
+   - 13-statement temporal trajectory chart showing delinquency and balance evolution over time.
    - Formal adverse-action notice formatted for FCRA / ECOA regulatory audits.
+
+---
+
+## Hugging Face Spaces Deployment & Security Checklist
+
+This repository is pre-configured for one-click deployment to **Hugging Face Spaces** via the Streamlit SDK.
+
+### Security Checklist (per `docs/SECURITY_AND_ACCESS.md`)
+- [x] **No Raw or Customer Data**: All real customer data directories (`data/raw/`, `data/interim/`, `data/processed/`) are strictly gitignored.
+- [x] **Synthetic Sample Only**: The demo uses only `app/sample_data.parquet` (50 synthetic records generated by `src/data/create_sample.py`).
+- [x] **Zero Secrets or API Keys**: No Kaggle credentials, Hugging Face tokens (`HF_TOKEN`), or private keys exist in any tracked files or git history.
+- [x] **Model Portability**: The saved LightGBM benchmark model is bundled at `app/model.txt` (text format, zero pickle vulnerabilities).
+- [x] **Educational Use Disclaimer**: The application prominently displays the mandatory educational and non-commercial disclaimer.
+
+### Deployment Commands
+```bash
+# 1. Add your Hugging Face Space as a git remote
+git remote add space https://huggingface.co/spaces/<YOUR_HF_USERNAME>/risktrail-demo
+
+# 2. Push to Hugging Face Spaces
+git push space main
+```
+For detailed configuration options and hardware recommendations, see [`docs/HF_SPACES_DEPLOY.md`](docs/HF_SPACES_DEPLOY.md).
 
 ---
 
@@ -190,7 +238,7 @@ All project phases have been completed and verified against the criteria in `doc
 | **6** | Business Profit Simulation | `src/business/profit.py`, cutoff sweeps, sensitivity grid, `reports/06_business.md` | **DONE** |
 | **7** | Explainability Hub | SHAP TreeExplainer, adverse action reasons, attention timeline, `reports/07_explainability.md` | **DONE** |
 | **8a** | Institutional Research Report | `reports/FINAL_REPORT.md` (8 sections, embedded figures & tables) | **DONE** |
-| **8b** | Interactive Streamlit Demo | `app/app.py` (3 tabs, gauge, profit curve, SHAP & attention), `tests/test_app.py` | **DONE** |
+| **8b** | Interactive Streamlit Demo & Deploy | `app/streamlit_app.py`, `app/sample_data.parquet`, `docs/HF_SPACES_DEPLOY.md` | **DONE** |
 
 ---
 
