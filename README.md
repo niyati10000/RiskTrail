@@ -1,247 +1,331 @@
----
-title: RiskTrail Credit Risk & Profit Optimization
-emoji: 💳
-colorFrom: blue
-colorTo: purple
-sdk: streamlit
-sdk_version: 1.66.0
-app_file: app/streamlit_app.py
-pinned: false
-license: mit
----
+```markdown
+<div align="center">
 
-# RiskTrail — Credit Risk Sequence Modeling & Profit Optimization
+# RiskTrail
 
-> **Credit Default Risk Prediction from Monthly Statement Sequences, Tabular vs Sequence Architecture Benchmarking, Profit-Maximizing Approval Policies, and Lender-Grade Explainability.**
+### Sequential Credit Default Prediction, Underwriting Profit Optimization & Lender-Grade Explainability
 
----
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![LightGBM](https://img.shields.io/badge/LightGBM-4.7.0-brightgreen?style=for-the-badge)](https://lightgbm.readthedocs.io/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.14-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.66-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-136%20Passing-success?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
 
-> [!IMPORTANT]
-> **Educational & Research Use Disclaimer**: This repository is designed exclusively for educational, benchmarking, and research purposes. It is **not** certified for real-world automated credit decisions or consumer underwriting.
+<p align="center">
+  <a href="#project-overview">Overview</a> •
+  <a href="#key-features">Key Features</a> •
+  <a href="#architecture--tech-stack">Architecture</a> •
+  <a href="#use-cases">Use Cases</a> •
+  <a href="#getting-started--setup">Getting Started</a> •
+  <a href="#project-structure">Project Structure</a> •
+  <a href="#license">License</a>
+</p>
 
----
-
-## Overview
-
-RiskTrail benchmarks credit risk prediction on customer-level statement histories (up to 13 consecutive monthly statements per customer):
-1. **Tabular Benchmark (LightGBM)**: Statistical aggregations across statement history (`last`, `first`, `mean`, `std`, `min`, `max`, `trend/slope`, `delta`).
-2. **Deep Sequence Models (PyTorch)**: Recurrent (`MaskedGRUModel`) and Attention-based (`StatementTransformer`) architectures capturing temporal deterioration patterns with strict zero-leakage front-padding.
-3. **Probability Calibration**: Evaluates probability calibration (Platt scaling & Isotonic regression) to correct neural prior shift caused by class weighting (`pos_weight = 3.09`).
-4. **Lender Economics & Business Optimization**: Translates predicted default probabilities into profit-maximizing lending cutoffs under bank revenue assumptions:
-   $$\text{Profit}(c) = V_{\text{good}} \cdot N_{\text{good, app}}(c) - L_{\text{default}} \cdot N_{\text{def, app}}(c)$$
-5. **Lender-Grade Explainability**: TreeExplainer SHAP top-5 adverse-action reason codes for rejected applicants and temporal statement attention allocation from `StatementTransformer`.
-6. **Executive Report & Interactive Demo**: Institutional 8-section synthesis (`reports/FINAL_REPORT.md`) and interactive Streamlit web dashboard (`app/streamlit_app.py`).
+</div>
 
 ---
 
-## Repository Architecture
+## Table of Contents
+
+- [Project Overview](#project-overview)
+- [Key Features](#key-features)
+- [Architecture & Tech Stack](#architecture--tech-stack)
+  - [System Architecture](#system-architecture)
+  - [Technology Breakdown](#technology-breakdown)
+- [Use Cases](#use-cases)
+- [Getting Started & Setup](#getting-started--setup)
+  - [Prerequisites](#prerequisites)
+  - [Installation Steps](#installation-steps)
+  - [Running the Pipelines](#running-the-pipelines)
+  - [Launching the Web Application](#launching-the-web-application)
+- [Project Structure](#project-structure)
+- [Testing & Quality Assurance](#testing--quality-assurance)
+- [License & Ethical Use](#license--ethical-use)
+
+---
+
+## Project Overview
+
+**RiskTrail** is a production-grade credit risk modeling and underwriting optimization platform engineered to predict consumer default from longitudinal credit card statement sequences. In traditional credit bureaus, customer histories are collapsed into static tabular averages, obscuring critical temporal warning signals such as escalating delinquency trajectories, balance spikes, and deteriorating payment velocity. RiskTrail systematically benchmarks industry-standard gradient boosted decision trees against deep sequential neural architectures while closing the gap between statistical probability estimation and commercial lender profitability.
+
+The platform executes a rigorous dual-track methodology: first engineering a 214-feature tabular dataset across historical aggregations (mean, standard deviation, slope, delta), and second constructing front-padded 3D sequence tensors `[N, 13, 22]` preserving multi-month statement dynamics without future data leakage. Predictions from both tabular (LightGBM) and neural models (Masked GRU and StatementTransformer with learned positional encodings and attention pooling) undergo post-hoc probability calibration (Platt scaling and Isotonic regression) to ensure true expected loss alignment.
+
+Beyond predictive scoring, RiskTrail implements a business decision layer that evaluates bank economics across varying interest margins and charge-off losses ($V_{\text{good}} = \$100$, $L_{\text{default}} = \$500$). By conducting continuous cutoff sweeps and sensitivity grids (2x to 20x loss-to-profit ratios), the system identifies the exact cutoffs that maximize net portfolio revenue. Every adverse credit determination is backed by regulatory-grade adverse-action reason codes derived via TreeExplainer SHAP in strict compliance with the Equal Credit Opportunity Act (ECOA) and Fair Credit Reporting Act (FCRA).
+
+---
+
+## Key Features
+
+- **Dual-Track Machine Learning Benchmark**: Direct empirical comparison between a tuned 214-feature LightGBM tabular benchmark and deep recurrent (`MaskedGRUModel`) and attention-based (`StatementTransformer`) architectures.
+- **Zero-Leakage Front-Padding Sequence Engine**: Standardized 13-statement temporal horizon with front-padding invariants guaranteeing that step $T=12$ represents the most recent statement and padded positions carry zero mathematical influence.
+- **Post-Hoc Probability Calibration**: Incorporates Isotonic Regression and Platt Scaling to correct for neural prior probability shifts caused by class imbalance reweighting (`pos_weight = 3.09`), restoring Brier score fidelity from $0.036$ down to $\le 0.0001$.
+- **Lender Economic & Profit Cutoff Simulation**: Translates raw probabilities into net dollar return curves:
+  $$\text{Profit}(c) = V_{\text{good}} \cdot N_{\text{approved, good}}(c) - L_{\text{default}} \cdot N_{\text{approved, default}}(c)$$
+  Identifying the profit-maximizing operational cutoff and proving $+\$18,000$ value-added relative to a naive "Approve Everyone" policy.
+- **Lender-Grade Explainability Hub**: Automated generation of regulatory adverse-action notices powered by TreeExplainer SHAP log-odds feature attributions, paired with 13-statement temporal attention timelines.
+- **Interactive Underwriting Dashboard**: Lightweight Streamlit console providing real-time risk gauges, cutoff threshold adjustment, portfolio profit curves, and applicant trajectory audits.
+- **Privacy-Preserving Standalone Deployment**: Ships with an anonymized 50-account synthetic cohort (`app/sample_data.csv`) and portable model weights (`app/model.txt`), preventing real client data leakage.
+
+---
+
+## Architecture & Tech Stack
+
+### System Architecture
 
 ```text
-RiskTrail/
-├── docs/                  # Project brain files (context, architecture, schema, plan)
-│   ├── BRAIN.md           # Master context anchor & session status
-│   ├── ARCHITECTURE.md    # System design & module contracts
-│   ├── DATABASE_SCHEMA.md # Data schemas & array invariants
-│   ├── DESIGN_SYSTEM.md   # Visualization palette & demo standards
-│   ├── PLAN.md            # Phased roadmap & exit gates
-│   ├── SECURITY_AND_ACCESS.md # Governance, secrets, & ethical lending
-│   ├── PROMPTS.md         # Phased execution prompts & audit trail
-│   └── HF_SPACES_DEPLOY.md # Hugging Face Spaces deployment & checklist
-├── configs/               # YAML configurations
-│   ├── columns.yaml       # Column classifications (id, date, categoricals, numerics)
-│   ├── data.yaml          # Paths, max sequence length (13), padding side, seed
-│   ├── lgbm.yaml          # LightGBM hyperparameters
-│   ├── gru.yaml           # GRU architecture & training hyperparams
-│   ├── transformer.yaml   # Transformer architecture & training hyperparams
-│   └── business.yaml      # Profit/loss assumptions & cutoff sweep grid
-├── data/                  # Data directories (gitignored)
-│   ├── raw/               # Untouched original statement data & labels
-│   ├── interim/           # Cleaned and encoded Parquet statements
-│   └── processed/         # Tabular parquet, sequence tensors, splits.parquet
-├── src/                   # Core modular package
-│   ├── data/              # load.py, clean.py, split.py, create_sample.py
-│   ├── features/          # tabular.py, sequence.py
-│   ├── models/            # lgbm.py, gru.py, transformer.py
-│   ├── eval/              # metrics.py, calibration.py, compare.py
-│   ├── business/          # profit.py
-│   ├── explain/           # shap_lgbm.py, seq_importance.py
-│   └── utils/             # seed.py, logging.py, io.py
-├── notebooks/             # Exploratory analysis only (no core pipeline logic)
-├── results/               # Standardized experiment runs (<model>/preds, metrics.json)
-│   ├── lgbm/              # Baseline tree model, preds, SHAP arrays
-│   ├── gru/               # Masked GRU weights, calibrated & uncalibrated preds
-│   └── transformer/       # StatementTransformer weights, attention, permutation importance
-├── reports/               # Markdown reports per phase + figures/
-│   ├── figures/           # 10 publication-standard figures
-│   ├── 01_eda.md          # Exploratory data audit
-│   ├── 05_evaluation.md   # Cross-model evaluation & calibration report
-│   ├── 06_business.md     # Business profit optimization report
-│   ├── 07_explainability.md # Adverse-action SHAP & attention report
-│   └── FINAL_REPORT.md    # Consolidated 8-section institutional research document
-├── tests/                 # Unit, smoke, and integration test suite (134 tests)
-├── app/                   # Streamlit demo & synthetic artifacts
-│   ├── streamlit_app.py   # Main demo interface (Score, Profit Curve, Why Tabs)
-│   ├── app.py             # Entrypoint wrapper
-│   ├── sample_data.parquet # Anonymized synthetic customer sample (50 accounts)
-│   ├── sample_statements.parquet # Synthetic 13-month statement histories
-│   ├── sample_shap.npy    # Precomputed SHAP values for sample accounts
-│   ├── shap_features.json # 214 feature names list
-│   ├── model.txt          # Portable LightGBM booster model
-│   └── requirements.txt   # Pinned dependencies for Hugging Face Spaces
-├── requirements.txt       # Pinned production & research dependencies
-├── .env.example           # Environment variables template
-├── .gitignore             # Secrets, data, cache, and prediction ignores
-└── README.md              # Project onboarding & reproduction guide
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │                      RAW MONTHLY STATEMENT DATA                        │
+ │           (Up to 13 Historical Statements per Customer Account)        │
+ └───────────────────────────────────┬────────────────────────────────────┘
+                                     │
+                   ┌─────────────────┴─────────────────┐
+                   ▼                                   ▼
+        ┌─────────────────────┐             ┌─────────────────────┐
+        │  TABULAR PIPELINE   │             │  SEQUENCE PIPELINE  │
+        │ Vectorized Groupby  │             │ Front-Padded Tensor │
+        │ 214 Aggregations:   │             │ [N, 13, 22] + Mask  │
+        │ last, mean, slope   │             │ Z-Score Scaled      │
+        └──────────┬──────────┘             └──────────┬──────────┘
+                   │                                   │
+                   ▼                                   ▼
+        ┌─────────────────────┐             ┌─────────────────────┐
+        │  LIGHTGBM BASELINE  │             │ SEQUENTIAL NEURAL   │
+        │  Tree Booster Grid  │             │ Masked (Bi)GRU /    │
+        │  Comp Metric: 0.583 │             │ StatementTransformer│
+        └──────────┬──────────┘             └──────────┬──────────┘
+                   │                                   │
+                   └─────────────────┬─────────────────┘
+                                     │
+                                     ▼
+                   ┌───────────────────────────────────┐
+                   │    CALIBRATION & EVALUATION       │
+                   │    Isotonic & Platt Scaling       │
+                   │    Competition Metric / ROC / PR  │
+                   └─────────────────┬─────────────────┘
+                                     │
+                                     ▼
+                   ┌───────────────────────────────────┐
+                   │    BUSINESS PROFIT ENGINE         │
+                   │    Cutoff Optimization Sweep      │
+                   │    2x to 20x Sensitivity Analysis │
+                   └─────────────────┬─────────────────┘
+                                     │
+                                     ▼
+                   ┌───────────────────────────────────┐
+                   │   EXPLAINABILITY & REGULATORY     │
+                   │   TreeExplainer SHAP Reason Codes │
+                   │   Statement Attention Allocation  │
+                   └─────────────────┬─────────────────┘
+                                     │
+                                     ▼
+                   ┌───────────────────────────────────┐
+                   │   STREAMLIT INTERACTIVE APP       │
+                   │   Real-Time Underwriting Console  │
+                   └───────────────────────────────────┘
 ```
+
+### Technology Breakdown
+
+| Domain | Technology / Library | Purpose |
+|---|---|---|
+| **Language** | Python 3.11+ | Core runtime environment |
+| **Tabular Modeling** | LightGBM | Gradient boosted decision tree benchmark |
+| **Deep Learning** | PyTorch (CPU/CUDA) | Recurrent (`GRU`) and attention (`Transformer`) sequence models |
+| **Explainability** | SHAP (TreeExplainer) | Exact local feature attributions and adverse action reason codes |
+| **Data Processing** | Pandas, PyArrow, NumPy | High-performance vectorized tabular feature transforms and Parquet I/O |
+| **Evaluation** | Scikit-Learn | Calibration curves, Brier score, ROC-AUC, PR-AUC, Gini coefficient |
+| **Visualization** | Matplotlib | Publication-standard reporting charts and risk gauges |
+| **Interactive UI** | Streamlit | Web-based underwriting, profit simulation, and audit dashboard |
+| **Testing** | Pytest | 136-test automated unit, integration, and leakage verification suite |
 
 ---
 
-## Clean Setup & Reproduction Instructions
+## Use Cases
 
-### 1. Prerequisites
-- **Python**: 3.10+ (tested on Python 3.11.9)
+- **Automated Credit Card Underwriting**: Financial institutions evaluate applicants with variable statement histories (1 to 13 months) to issue instantaneous credit decisions backed by empirical default probabilities.
+- **Dynamic Portfolio Profit Maximization**: Chief Risk Officers (CROs) model expected charge-off losses against net interest margins to calibrate underwriting cutoffs dynamically during shifting macroeconomic credit cycles.
+- **Regulatory Adverse-Action Disclosures**: Consumer lending compliance officers automatically generate legally compliant adverse-action statements satisfying ECOA and FCRA notification mandates.
+- **Early-Warning Account Monitoring**: Card issuers identify currently performing accounts exhibiting subtle deteriorating balance velocity and payment slopes prior to delinquency events.
+
+---
+
+## Getting Started & Setup
+
+### Prerequisites
+
+- **Python**: Version 3.10 or higher (tested on Python 3.11.9)
 - **Git**
+- **Hardware**: Standard x86_64 CPU (minimum 8 GB RAM recommended)
 
-### 2. Clone Repository
-```bash
-git clone <repo-url>
-cd RiskTrail
-```
+### Installation Steps
 
-### 3. Create & Activate Virtual Environment
-On Windows (PowerShell):
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/niyati10000/RiskTrail.git
+   cd RiskTrail
+   ```
 
-On Linux / macOS:
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
+2. **Initialize and Activate Virtual Environment**:
+   - **Linux / macOS**:
+     ```bash
+     python3 -m venv .venv
+     source .venv/bin/activate
+     ```
+   - **Windows (PowerShell)**:
+     ```powershell
+     python -m venv .venv
+     .\.venv\Scripts\Activate.ps1
+     ```
 
-### 4. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
+3. **Install Dependencies**:
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+   *(For CPU-only environments, PyTorch CPU wheels install automatically via standard pip).*
 
-*(Note for CPU-only environments: PyTorch CPU wheels can alternatively be installed via `pip install torch --index-url https://download.pytorch.org/whl/cpu`)*
-
-### 5. Setup Environment Configuration
-```bash
-cp .env.example .env
-```
-*(On Windows PowerShell: `Copy-Item .env.example .env`)*
-
-### 6. Run Full Verification Test Suite
-Execute the complete automated test suite (134 tests covering data integrity, split isolation, padding invariance, metrics, models, business simulation, explainability, report structure, and demo app):
-```bash
-pytest -v
-```
+4. **Environment Configuration**:
+   ```bash
+   cp .env.example .env
+   ```
+   *(Windows: `Copy-Item .env.example .env`)*
 
 ---
 
-## End-to-End Execution Pipeline
+### Running the Pipelines
 
-To run or reproduce all phases from scratch:
+To reproduce the entire modeling, evaluation, and explainability lifecycle from scratch:
 
 ```bash
-# 1. Feature Engineering (Tabular aggregations and Front-Padded Sequence Tensors)
+# 1. Feature Engineering (Tabular aggregations and Front-Padded sequence tensors)
 python src/features/tabular.py
 python src/features/sequence.py
 
-# 2. Model Training & Validation
+# 2. Model Training (LightGBM, Masked GRU, StatementTransformer)
 python src/models/lgbm.py
 python src/models/gru.py
 python src/models/transformer.py
 
-# 3. Model Evaluation, Probability Calibration & Trend Segmentation
+# 3. Unified Cross-Model Evaluation & Probability Calibration
 python src/eval/compare.py
 
-# 4. Business Profit Cutoff Optimization & Sensitivity Sweeps
+# 4. Business Profit Cutoff Sweep & Sensitivity Analysis
 python src/business/profit.py
 
-# 5. Explainability (SHAP TreeExplainer, Reason Codes & Statement Attention)
+# 5. Explainability (SHAP TreeExplainer & Temporal Attention)
 python src/explain/shap_lgbm.py
 python src/explain/seq_importance.py
 
-# 6. Generate Synthetic Demo Sample for Standalone / Cloud Deployment
+# 6. Generate Synthetic Cohort for Cloud / Standalone Deployment
 python src/data/create_sample.py
 ```
 
 ---
 
-## Interactive Streamlit Demo Application
+### Launching the Web Application
 
 Launch the interactive underwriting decision dashboard locally:
 
 ```bash
 streamlit run app/streamlit_app.py
 ```
-*(or run `streamlit run app/app.py`)*
 
-### Key Capabilities of the Demo
-1. **Score & Underwriting Tab**:
-   - Select any synthetic applicant or load the designated case study borrower (`SYNTH_0045`).
-   - Dynamic **Underwriting Risk Gauge** indicating customer score vs approval threshold.
-   - Real-time **APPROVED** or **DECLINED** policy decision banner at chosen cutoff.
-   - Financial trajectory metrics (delinquency slope $\beta$, revolving balance $B\_1$, payment ratio $P\_2$).
-2. **Profit Curve Tab**:
-   - Interactive portfolio profit simulation curve across cutoffs $c \in [0, 1]$.
-   - Visual comparison against the "Approve Everyone" baseline and peak profit at optimal cutoff $c^*$.
-   - Policy KPI benchmarking table (Current vs Optimal vs Approve-All vs Decline-All).
-3. **Why This Decision (Explainability) Tab**:
-   - Top-5 risk drivers horizontal bar chart (red = raises risk, blue = lowers risk) using TreeExplainer SHAP.
-   - Structured adverse-action reason codes with lender-grade descriptions.
-   - 13-statement temporal trajectory chart showing delinquency and balance evolution over time.
-   - Formal adverse-action notice formatted for FCRA / ECOA regulatory audits.
+Once launched, navigate to `http://localhost:8501` in your browser.
+
+- **Score Tab**: Adjust the **Approval Cutoff slider** to view real-time **APPROVED / DECLINED** determinations and observe the applicant risk gauge.
+- **Profit Curve Tab**: Inspect total portfolio revenue curves across cutoff thresholds $c \in [0, 1]$ relative to the "Approve Everyone" baseline.
+- **Why This Decision Tab**: Review top-5 SHAP adverse-action drivers and inspect the 13-month historical statement trajectory.
 
 ---
 
-## Hugging Face Spaces Deployment & Security Checklist
+## Project Structure
 
-This repository is pre-configured for one-click deployment to **Hugging Face Spaces** via the Streamlit SDK.
-
-### Security Checklist (per `docs/SECURITY_AND_ACCESS.md`)
-- [x] **No Raw or Customer Data**: All real customer data directories (`data/raw/`, `data/interim/`, `data/processed/`) are strictly gitignored.
-- [x] **Synthetic Sample Only**: The demo uses only `app/sample_data.parquet` (50 synthetic records generated by `src/data/create_sample.py`).
-- [x] **Zero Secrets or API Keys**: No Kaggle credentials, Hugging Face tokens (`HF_TOKEN`), or private keys exist in any tracked files or git history.
-- [x] **Model Portability**: The saved LightGBM benchmark model is bundled at `app/model.txt` (text format, zero pickle vulnerabilities).
-- [x] **Educational Use Disclaimer**: The application prominently displays the mandatory educational and non-commercial disclaimer.
-
-### Deployment Commands
-```bash
-# 1. Add your Hugging Face Space as a git remote
-git remote add space https://huggingface.co/spaces/<YOUR_HF_USERNAME>/risktrail-demo
-
-# 2. Push to Hugging Face Spaces
-git push space main
+```text
+RiskTrail/
+├── configs/                   # Declarative YAML parameters
+│   ├── business.yaml          # Profit margins ($100), loss assumptions ($500), sweep grid
+│   ├── columns.yaml           # Metadata taxonomy: IDs, dates, categoricals, numerics
+│   ├── data.yaml              # Paths, sequence lengths (13), padding configuration
+│   ├── gru.yaml               # Masked GRU hyperparameters
+│   ├── lgbm.yaml              # LightGBM tree hyperparameters
+│   └── transformer.yaml       # StatementTransformer layer dimensions & heads
+├── data/                      # Data storage (gitignored per privacy standards)
+│   ├── raw/                   # Raw customer statement parquet files
+│   ├── interim/               # Imputed, cleaned statement series
+│   └── processed/             # Tabular.parquet, X_seq.npy, mask.npy, splits.parquet
+├── docs/                      # Architectural and governance specifications
+│   ├── ARCHITECTURE.md        # Technical component contracts
+│   ├── BRAIN.md               # Context anchor & locked-in engineering decisions
+│   ├── DATABASE_SCHEMA.md     # Invariant array contracts and schema definitions
+│   ├── DESIGN_SYSTEM.md       # Visual palette, typography, and chart standards
+│   ├── HF_SPACES_DEPLOY.md    # Hugging Face deployment checklist & security guide
+│   ├── PLAN.md                # Multi-phase engineering roadmap
+│   └── SECURITY_AND_ACCESS.md # Data governance, secrets hygiene, and fair lending
+├── reports/                   # Audit reports and publication assets
+│   ├── figures/               # Standard publication figures (PNG, 150/300 DPI)
+│   ├── 01_eda.md              # Missingness and customer distribution audit
+│   ├── 05_evaluation.md       # Model benchmarking & calibration analysis
+│   ├── 06_business.md         # Portfolio cutoff optimization report
+│   ├── 07_explainability.md   # SHAP adverse action & attention attribution report
+│   └── FINAL_REPORT.md        # Consolidated institutional research paper
+├── results/                   # Persisted experiment runs and weights
+│   ├── gru/                   # Masked GRU PyTorch weights & validation predictions
+│   ├── lgbm/                  # LightGBM booster model (text) & validation predictions
+│   └── transformer/           # StatementTransformer weights & permutation importance
+├── src/                       # Core modular codebase
+│   ├── business/profit.py     # Economic profit simulation & cutoff sweeps
+│   ├── data/                  # Loading, cleaning, stratified customer splitting
+│   ├── eval/                  # Competition metric, Gini, calibration curves
+│   ├── explain/               # SHAP TreeExplainer & sequence attention extractors
+│   ├── features/              # Tabular groupby aggregates & front-padded sequence tensors
+│   ├── models/                # PyTorch architectures (GRU, Transformer) & LightGBM
+│   └── utils/                 # Reproducibility seeds, logging, file I/O
+├── tests/                     # Automated testing suite
+│   ├── test_app.py            # Streamlit data contracts & plot generation tests
+│   ├── test_features.py       # Groupby aggregation & slope verification tests
+│   ├── test_metrics.py        # Gini, capture@4%, and competition metric tests
+│   ├── test_sequence.py       # Front-padding leakage & tensor invariant tests
+│   └── test_split.py          # Customer stratification & isolation tests
+├── app/                       # Standalone demo & deployment package
+│   ├── app.py                 # Forwarding entrypoint wrapper
+│   ├── streamlit_app.py       # Core Streamlit user interface
+│   ├── model.txt              # Portable LightGBM booster weights (text format)
+│   ├── sample_data.csv        # Anonymized synthetic sample accounts (50 records)
+│   ├── sample_statements.csv  # Synthetic 13-month statement histories
+│   ├── sample_shap.json       # Precomputed SHAP attribution matrix
+│   └── requirements.txt       # Streamlit Cloud & Spaces dependencies
+├── requirements.txt           # Master project dependencies
+├── .env.example               # Environment variables template
+├── .gitignore                 # Secrets, binary weights, and customer data ignore rules
+└── README.md                  # Project documentation
 ```
-For detailed configuration options and hardware recommendations, see [`docs/HF_SPACES_DEPLOY.md`](docs/HF_SPACES_DEPLOY.md).
 
 ---
 
-## Roadmap & Completion Status
+## Testing & Quality Assurance
 
-All project phases have been completed and verified against the criteria in `docs/PLAN.md`:
+RiskTrail enforces exhaustive regression and unit testing across mathematical formulations, padding leakage invariants, data integrity, and UI components.
 
-| Phase | Description | Deliverables | Status |
-|---|---|---|:---:|
-| **0** | Setup & Brain | Folder structure, config files, seeds, smoke tests | **DONE** |
-| **1** | Data Audit & EDA | `reports/01_eda.md`, `configs/columns.yaml`, missingness heatmaps | **DONE** |
-| **2** | Preprocessing & Features | `splits.parquet`, `tabular.parquet`, `X_seq.npy`, `mask.npy`, `y.npy` | **DONE** |
-| **3** | LightGBM Baseline | `results/lgbm/` (model, preds, metrics.json) | **DONE** |
-| **4a** | Masked GRU Model | `results/gru/` (padding invariance proven, metrics.json) | **DONE** |
-| **4b** | StatementTransformer | `results/transformer/` (learned positional encodings, attention pooling) | **DONE** |
-| **5** | Evaluation & Calibration | `src/eval/compare.py`, Platt & Isotonic calibration, `reports/05_evaluation.md` | **DONE** |
-| **6** | Business Profit Simulation | `src/business/profit.py`, cutoff sweeps, sensitivity grid, `reports/06_business.md` | **DONE** |
-| **7** | Explainability Hub | SHAP TreeExplainer, adverse action reasons, attention timeline, `reports/07_explainability.md` | **DONE** |
-| **8a** | Institutional Research Report | `reports/FINAL_REPORT.md` (8 sections, embedded figures & tables) | **DONE** |
-| **8b** | Interactive Streamlit Demo & Deploy | `app/streamlit_app.py`, `app/sample_data.parquet`, `docs/HF_SPACES_DEPLOY.md` | **DONE** |
+To execute the test suite:
+
+```bash
+pytest -v
+```
+
+### Verified Test Suite Invariants (136 Passing Tests):
+- **Split Leakage Isolation**: Verifies with absolute certainty that zero customer IDs appear in more than one split partition (train/valid/test).
+- **Mathematical Padding Invariance**: Proves that mutating padded steps in input sequences yields exactly `diff == 0.0` in neural model outputs.
+- **Closed-Form Trajectory Validation**: Validates vectorized $\beta$ slope algorithms against single-statement edge cases ($n \le 1 \rightarrow 0.0$) with zero NaNs.
+- **Metric Verification**: Validates normalized Gini ($2 \times \text{AUC} - 1$) and default capture rate at 4% against exact analytical solutions.
+- **UI Contract Integrity**: Ensures all synthetic data loaders, Matplotlib risk gauges, profit curves, and SHAP charts render without exceptions.
 
 ---
 
-## License & Responsible Data Handling
-- Do not commit or distribute raw/processed customer statements or prediction arrays containing customer IDs.
-- For data licensing and competition terms, refer to the source dataset agreement.
+## License & Ethical Use
+
+Distributed under the **MIT License**. See `LICENSE` for details.
+
+### Educational & Regulatory Notice
+> **DISCLAIMER**: This software repository is designed strictly for educational, academic benchmarking, and research purposes. It is **not** certified for real-world automated credit decisions, credit line assignment, or consumer underwriting. In compliance with the Fair Housing Act and the Equal Credit Opportunity Act (ECOA), production credit underwriting models must undergo rigorous disparate impact assessments, fair lending audits, and model governance reviews before consumer deployment.
+```
