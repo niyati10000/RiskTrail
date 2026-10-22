@@ -25,6 +25,9 @@
 
 ---
 
+# Hosted link
+https://risktrail-niyati.streamlit.app/
+
 ## Table of Contents
 
 - [Project Overview](#project-overview)
