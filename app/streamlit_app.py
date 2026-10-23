@@ -15,7 +15,9 @@ Streamlit demo application built strictly in accordance with docs/DESIGN_SYSTEM.
 """
 
 import json
+import os
 from pathlib import Path
+import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib
@@ -25,8 +27,21 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-# Application and Data Paths (self-contained within app/)
+# Ensure app directory and project root are in sys.path
 APP_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = APP_DIR.parent
+for p in [str(APP_DIR), str(PROJECT_ROOT)]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+try:
+    from app.copilot import query_local_copilot, query_gemini_api, query_groq_api
+    from app.letterhead import generate_bank_letter_html, generate_bank_letter_text
+except ImportError:
+    from copilot import query_local_copilot, query_gemini_api, query_groq_api
+    from letterhead import generate_bank_letter_html, generate_bank_letter_text
+
+# Application and Data Paths (self-contained within app/)
 SAMPLE_DATA_PATH = APP_DIR / "sample_data.parquet"
 SAMPLE_STMTS_PATH = APP_DIR / "sample_statements.parquet"
 SAMPLE_SHAP_PATH = APP_DIR / "sample_shap.npy"
@@ -400,6 +415,32 @@ def main() -> None:
         help="Approve customer if predicted default probability < cutoff.",
     )
 
+    # AI Assistant Keys
+    st.sidebar.subheader("🤖 AI Copilot Settings")
+    with st.sidebar.expander("🔑 Model API Keys (Optional)", expanded=False):
+        st.markdown(
+            "Configure external cloud providers for the **RiskTrail AI Underwriting Copilot**. "
+            "Leave blank to use the built-in **Local Copilot** (100% free and offline)."
+        )
+        gemini_input = st.text_input(
+            "Gemini API Key",
+            type="password",
+            value=st.session_state.get("gemini_api_key", os.getenv("GEMINI_API_KEY", "")),
+            help="Google AI Studio Gemini API key. Stored only in active session memory.",
+        )
+        groq_input = st.text_input(
+            "Groq API Key",
+            type="password",
+            value=st.session_state.get("groq_api_key", os.getenv("GROQ_API_KEY", "")),
+            help="Groq Cloud API key. Stored only in active session memory.",
+        )
+        if gemini_input:
+            st.session_state["gemini_api_key"] = gemini_input
+        if groq_input:
+            st.session_state["groq_api_key"] = groq_input
+
+        st.caption("🔒 **Security Note**: Keys are held strictly in local browser memory and are never saved to disk or repository.")
+
     # Applicant Selection
     st.sidebar.subheader("👤 Applicant Selector")
     cohort_filter = st.sidebar.radio(
@@ -442,6 +483,135 @@ def main() -> None:
     cust_tab = tab_df.loc[selected_cid]
     cust_stmts = stmts_df[stmts_df["customer_id"] == selected_cid]
     n_statements = int((~cust_stmts["is_padded"]).sum())
+
+    # Extract top SHAP risk drivers (Computed globally for both Copilot and Tab 3)
+    cust_shap = shap_values[cust_idx]
+    top_indices = np.argsort(np.abs(cust_shap))[::-1][:5]
+    reason_codes: List[Dict[str, Any]] = []
+
+    for rank, idx in enumerate(top_indices, start=1):
+        feat = feature_names[idx]
+        impact = float(cust_shap[idx])
+        val = float(cust_tab[feat])
+        desc = describe_feature(feat)
+        reason_codes.append({
+            "rank": rank,
+            "feature": feat,
+            "shap_impact": impact,
+            "feature_value": val,
+            "adverse_action_reason": desc,
+            "direction": "Raises Risk 🔴" if impact > 0 else "Lowers Risk 🔵",
+        })
+
+    # ---------------------------------------------------------
+    # UNIVERSAL AI UNDERWRITING COPILOT (Common across all tabs)
+    # ---------------------------------------------------------
+    if "copilot_messages" not in st.session_state:
+        st.session_state["copilot_messages"] = [
+            {
+                "role": "assistant",
+                "content": (
+                    f"👋 **Welcome to RiskTrail Underwriting Copilot!** I am your institutional credit risk analyst and fair lending advisor.\n\n"
+                    f"I am actively monitoring **Applicant {selected_cid}** (Predicted Default Probability: **{risk_prob * 100:.2f}%** | "
+                    f"Approval Cutoff: **{cutoff * 100:.2f}%** | Determination: **{'APPROVED' if is_approved else 'DECLINED'}**).\n\n"
+                    f"Ask me anything about this applicant's risk factors, how to improve their score, portfolio profit economics, "
+                    f"or regulatory adverse action compliance under ECOA Reg B."
+                ),
+            }
+        ]
+
+    with st.expander("💬 🤖 RiskTrail AI Underwriting Copilot (Persistent Across All Tabs)", expanded=False):
+        c_top1, c_top2 = st.columns([2.2, 1.2])
+        with c_top1:
+            st.markdown(
+                "**Universal AI Assistant**: Persists across Score, Profit Curve, and Adverse Action tabs. "
+                "Query borrower risk trajectories or simulate policy changes."
+            )
+        with c_top2:
+            model_provider = st.selectbox(
+                "Model Engine Provider",
+                options=[
+                    "💻 Local RiskTrail Copilot (Built-in / Zero API Key)",
+                    "♊ Google Gemini 1.5 Flash",
+                    "⚡ Groq (Llama 3.3 70B)",
+                ],
+                index=0,
+                label_visibility="collapsed",
+                help="Select AI model. Local Copilot is 100% free and runs offline without API keys.",
+            )
+
+        # Quick Inquiries Bar
+        st.markdown(
+            "<span style='font-size: 11.5px; color: #64748B; font-weight: 700;'>QUICK INQUIRIES:</span>",
+            unsafe_allow_html=True,
+        )
+        qb1, qb2, qb3, qb4 = st.columns([1.3, 1.3, 1.3, 0.6])
+        quick_query = None
+        with qb1:
+            if st.button("❓ Why declined?", use_container_width=True):
+                quick_query = "Why was this applicant declined, and what are their principal risk drivers?"
+        with qb2:
+            if st.button("📈 Profit cutoff?", use_container_width=True):
+                quick_query = "Explain how the profit curve works and what cutoff threshold maximizes portfolio profit."
+        with qb3:
+            if st.button("🛠️ How to improve?", use_container_width=True):
+                quick_query = "What specific, actionable steps can this borrower take to qualify for approval?"
+        with qb4:
+            if st.button("🗑️ Clear", use_container_width=True, help="Reset conversation history"):
+                st.session_state["copilot_messages"] = []
+                st.rerun()
+
+        # Chat message display container
+        chat_box = st.container(height=280)
+        with chat_box:
+            for m in st.session_state["copilot_messages"]:
+                with st.chat_message(m["role"]):
+                    st.markdown(m["content"])
+
+        # Inline chat input
+        typed_prompt = st.chat_input("Ask RiskTrail Copilot about this applicant, underwriting policy, or ECOA compliance...")
+        active_prompt = quick_query if quick_query else typed_prompt
+
+        if active_prompt:
+            st.session_state["copilot_messages"].append({"role": "user", "content": active_prompt})
+
+            app_ctx = {
+                "customer_id": selected_cid,
+                "risk_prob": risk_prob,
+                "cutoff": cutoff,
+                "is_approved": is_approved,
+                "ground_truth": ground_truth,
+                "profit_good": profit_good,
+                "loss_default": loss_default,
+                "reasons": reason_codes,
+            }
+
+            with st.spinner("RiskTrail Copilot analyzing credit data..."):
+                if "Local" in model_provider:
+                    copilot_reply = query_local_copilot(
+                        prompt=active_prompt,
+                        applicant_context=app_ctx,
+                        chat_history=st.session_state["copilot_messages"],
+                    )
+                elif "Gemini" in model_provider:
+                    gem_key = st.session_state.get("gemini_api_key", os.getenv("GEMINI_API_KEY", ""))
+                    copilot_reply = query_gemini_api(
+                        api_key=gem_key,
+                        prompt=active_prompt,
+                        applicant_context=app_ctx,
+                        chat_history=st.session_state["copilot_messages"],
+                    )
+                else:  # Groq
+                    grq_key = st.session_state.get("groq_api_key", os.getenv("GROQ_API_KEY", ""))
+                    copilot_reply = query_groq_api(
+                        api_key=grq_key,
+                        prompt=active_prompt,
+                        applicant_context=app_ctx,
+                        chat_history=st.session_state["copilot_messages"],
+                    )
+
+            st.session_state["copilot_messages"].append({"role": "assistant", "content": copilot_reply})
+            st.rerun()
 
     # ---------------------------------------------------------
     # MAIN AREA: THREE TABS
@@ -605,24 +775,7 @@ def main() -> None:
             "the principal reasons that contributed to an adverse credit underwriting decision."
         )
 
-        # Extract top SHAP risk drivers
-        cust_shap = shap_values[cust_idx]
-        top_indices = np.argsort(np.abs(cust_shap))[::-1][:5]
-        reason_codes: List[Dict[str, Any]] = []
-
-        for rank, idx in enumerate(top_indices, start=1):
-            feat = feature_names[idx]
-            impact = float(cust_shap[idx])
-            val = float(cust_tab[feat])
-            desc = describe_feature(feat)
-            reason_codes.append({
-                "rank": rank,
-                "feature": feat,
-                "shap_impact": impact,
-                "feature_value": val,
-                "adverse_action_reason": desc,
-                "direction": "Raises Risk 🔴" if impact > 0 else "Lowers Risk 🔵",
-            })
+        # Top SHAP risk drivers (precomputed for this applicant)
 
         col_w1, col_w2 = st.columns([1.1, 0.9])
         with col_w1:
@@ -657,34 +810,37 @@ def main() -> None:
 
         st.markdown("---")
 
-        # Formal Adverse Action Notice in an Expander
-        with st.expander("📄 View Formal Adverse Action Statement (ECOA / FCRA Format)"):
-            lines = [
-                "=" * 85,
-                "CREDIT DECISION NOTICE — ADVERSE ACTION STATEMENT",
-                f"Applicant Identifier: {selected_cid}",
-                f"Application Date: Most Recent Statement T",
-                "=" * 85,
-                "",
-                "DECISION OUTCOME: DECLINED" if not is_approved else "DECISION OUTCOME: APPROVED",
-                f"Model Assessed Default Risk: {risk_prob * 100:.2f}%",
-                f"Policy Underwriting Cutoff:  {cutoff * 100:.2f}%",
-                "",
-                "KEY FACTORS CONTRIBUTING TO ADVERSE DECISION:",
-            ]
-            for r in reason_codes:
-                impact_label = f"+{r['shap_impact']:.4f}" if r['shap_impact'] > 0 else f"{r['shap_impact']:.4f}"
-                lines.append(f"  [{r['rank']}] {r['adverse_action_reason']}")
-                lines.append(f"      Feature: {r['feature']} = {r['feature_value']:.4f} (SHAP Contribution: {impact_label} log-odds)")
-                lines.append("")
-            lines.extend([
-                "=" * 85,
-                "DISCLOSURE UNDER EQUAL CREDIT OPPORTUNITY ACT (ECOA) & FAIR CREDIT REPORTING ACT (FCRA):",
-                "Our credit scoring system evaluated the applicant's 13-month credit performance history.",
-                "The reasons listed above represent the principal factors influencing this underwriting determination.",
-                "=" * 85,
-            ])
-            st.code("\n".join(lines), language="text")
+        # 4. Official Bank Document Replica — Adverse Action Notice
+        st.markdown("#### 4. Official Bank Document Replica — Adverse Action Notice")
+        st.caption(
+            "Authentic corporate stationery document replica compliant with ECOA Regulation B (12 C.F.R. § 1002.9) "
+            "and Fair Credit Reporting Act (15 U.S.C. § 1681m)."
+        )
+
+        letter_html = generate_bank_letter_html(
+            customer_id=selected_cid,
+            risk_prob=risk_prob,
+            cutoff=cutoff,
+            is_approved=is_approved,
+            reason_codes=reason_codes,
+            cust_tab=cust_tab,
+        )
+        st.markdown(letter_html, unsafe_allow_html=True)
+
+        letter_text = generate_bank_letter_text(
+            customer_id=selected_cid,
+            risk_prob=risk_prob,
+            cutoff=cutoff,
+            is_approved=is_approved,
+            reason_codes=reason_codes,
+        )
+        st.download_button(
+            label="📥 Download Official Notice (.txt)",
+            data=letter_text,
+            file_name=f"Notice_of_Adverse_Action_{selected_cid}.txt",
+            mime="text/plain",
+            help="Download formal text notice for customer records or compliance audit trail.",
+        )
 
         # Methodological Disclosure
         st.markdown("---")
